@@ -50,21 +50,7 @@ try:
 except ImportError:
     # Fallback if responsive module not available
     class ResponsiveDesign:
-        @staticmethod
-        def get_mobile_css():
-            return ""
-
-        @staticmethod
-        def mobile_button(label, **kwargs):
-            return st.button(label, **kwargs)
-
-        @staticmethod
-        def mobile_columns(*ratios):
-            return st.columns(ratios)
-
-        @staticmethod
-        def mobile_metric(label, value, delta=None):
-            return st.metric(label, value, delta)
+        pass
 
 
 try:
@@ -89,20 +75,11 @@ except Exception:
     YTMusicCleaner = None
 from musicweb.web.playlist_audit import audit_playlist, parse_playlist_bytes
 
-# Defer heavy imports for better mobile loading
 HAVE_VISUALIZATION = True  # Assume we have it, import on demand
 
 
 def get_visualization_modules():
-    """Lazy load visualization modules when needed (desktop only)."""
-    # Skip heavy modules on mobile to prevent crashes
-    is_mobile = st.session_state.get("mobile_detected", False)
-    if is_mobile:
-        st.info(
-            "📱 Charts disabled on mobile for better performance. Use desktop for full visualization features."
-        )
-        return None, None, None, None, None
-
+    """Lazy load visualization modules when needed."""
     try:
         import matplotlib.pyplot as plt
         import plotly.express as px
@@ -120,8 +97,8 @@ def get_visualization_modules():
 import base64
 
 
-def get_logo_base64():
-    """Get the logo as base64 encoded string."""
+def get_logo_base64(dark_mode=False):
+    """Get the logo as base64 encoded string with dark mode support."""
     try:
         # Use importlib.resources for proper package resource access
         try:
@@ -133,116 +110,254 @@ def get_logo_base64():
         # Access logo from package resources
         package_files = files("musicweb.web.assets")
         logo_data = (package_files / "mwlogo.png").read_bytes()
-        return base64.b64encode(logo_data).decode()
+        logo_base64 = base64.b64encode(logo_data).decode()
+
+        # Apply CSS filter for dark mode
+        if dark_mode:
+            return logo_base64, "filter: invert(1) hue-rotate(180deg) brightness(1.2);"
+        else:
+            return logo_base64, "filter: none;"
+
     except Exception:
         # Fallback to direct file access if importlib.resources fails
         try:
             logo_path = Path(__file__).parent / "assets" / "mwlogo.png"
             with open(logo_path, "rb") as f:
-                return base64.b64encode(f.read()).decode()
+                logo_base64 = base64.b64encode(f.read()).decode()
+
+            if dark_mode:
+                return (
+                    logo_base64,
+                    "filter: invert(1) hue-rotate(180deg) brightness(1.2);",
+                )
+            else:
+                return logo_base64, "filter: none;"
+
         except Exception:
             # Final fallback if logo file not found
-            return ""
+            return "", ""
 
 
-# Page configuration - Mobile responsive
+def detect_dark_mode():
+    """Detect if user is using dark mode via JavaScript."""
+    return st.session_state.get("dark_mode_detected", False)
+
+
+# Page configuration - Responsive design
 st.set_page_config(
     page_title="a mega music comparator",
     page_icon="🕸️",
     layout="wide",
-    initial_sidebar_state="auto",  # Auto-collapse on mobile
+    initial_sidebar_state="auto",  # Auto-collapse on small screens
     menu_items={
         "Get Help": None,
         "Report a bug": None,
         "About": """
         # a mega music comparator
-        A mobile-friendly tool for comparing music libraries across platforms.
+        A responsive tool for comparing music libraries across platforms.
         """,
     },
 )
 
 
-# Enhanced mobile detection and optimization
-def is_mobile_browser():
-    """Detect if user is on mobile browser."""
-    try:
-        # Simple mobile detection fallback
-        return st.session_state.get("mobile_detected", False)
-    except:
-        return False
+# Initialize app - no loading screen for faster mobile performance
 
 
-# Mobile-optimized initialization
-if "app_ready" not in st.session_state:
-    # Show lightweight loading screen
-    loading_container = st.container()
-    with loading_container:
-        st.markdown(
-            """
-        <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin: 20px 0;">
-            <h1 style="margin: 0; font-size: 1.5em;">🎵 a mega music comparator</h1>
-            <p style="margin: 10px 0; opacity: 0.9;">Preparing your music comparison experience...</p>
-            <div style="margin: 15px 0;">
-                <div style="display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            </div>
-            <style>
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            body { background: #f8f9fa; }
-            </style>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    # Quick initialization
-    st.session_state.app_ready = True
-    # Auto-refresh to show main app
-    st.rerun()
-
-# JavaScript-based mobile detection for Streamlit Cloud
-mobile_detection_js = """
+# Dark mode detection JavaScript
+dark_mode_js = """
 <script>
-function detectMobileDevice() {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-        || window.innerWidth <= 768;
+function detectTheme() {
+    // Detect system dark mode preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    if (isMobile) {
-        // Store mobile detection in session storage
-        sessionStorage.setItem('is_mobile', 'true');
-        // Add mobile class to body
-        document.body.classList.add('mobile-device');
-        
-        // Reduce memory usage on mobile
-        if (window.performance && window.performance.memory) {
-            const memory = window.performance.memory;
-            if (memory.usedJSHeapSize > 50 * 1024 * 1024) { // 50MB threshold
-                console.log('High memory usage detected on mobile, optimizing...');
-            }
-        }
+    // Check for Streamlit's dark theme
+    const streamlitDark = document.querySelector('[data-theme="dark"]') !== null;
+    
+    // Store dark mode state
+    const isDarkMode = prefersDark || streamlitDark;
+    sessionStorage.setItem('dark_mode', isDarkMode.toString());
+    
+    // Apply theme-specific CSS classes
+    document.body.classList.toggle('dark-theme', isDarkMode);
+    document.body.classList.toggle('light-theme', !isDarkMode);
+    
+    // Update CSS custom properties for dynamic theming
+    if (isDarkMode) {
+        document.documentElement.style.setProperty('--bg-primary', '#0e1117');
+        document.documentElement.style.setProperty('--bg-secondary', '#262730');
+        document.documentElement.style.setProperty('--text-primary', '#fafafa');
+        document.documentElement.style.setProperty('--text-secondary', '#a6a6a6');
+        document.documentElement.style.setProperty('--accent-color', '#ff6b6b');
+        document.documentElement.style.setProperty('--border-color', '#333');
+    } else {
+        document.documentElement.style.setProperty('--bg-primary', '#ffffff');
+        document.documentElement.style.setProperty('--bg-secondary', '#f0f2f6');
+        document.documentElement.style.setProperty('--text-primary', '#262730');
+        document.documentElement.style.setProperty('--text-secondary', '#6c757d');
+        document.documentElement.style.setProperty('--accent-color', '#007bff');
+        document.documentElement.style.setProperty('--border-color', '#dee2e6');
     }
 }
 
-// Run detection immediately and on resize
-detectMobileDevice();
-window.addEventListener('resize', detectMobileDevice);
-window.addEventListener('orientationchange', detectMobileDevice);
+// Run detection on load and when theme changes
+detectTheme();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectTheme);
+
+// Also watch for Streamlit theme changes
+const observer = new MutationObserver(detectTheme);
+observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 </script>
 """
 
-# Inject mobile detection script first
-st.markdown(mobile_detection_js, unsafe_allow_html=True)
+# Inject dark mode detection
+st.markdown(dark_mode_js, unsafe_allow_html=True)
 
 # Update session state based on detection
-if "mobile_detected" not in st.session_state:
-    # Force mobile mode for Streamlit Cloud deployment reliability
-    # This will be overridden by JS detection if available
-    st.session_state.mobile_detected = True  # Start with mobile-first approach
+if "dark_mode_detected" not in st.session_state:
+    st.session_state.dark_mode_detected = False
 
-# Inject mobile-responsive CSS
-mobile_css = """
-/* Mobile-First Responsive Design for MusicWeb */
+# Enhanced responsive CSS with dark mode support
+responsive_css = """
+/* Responsive Design with Dark Mode Support for MusicWeb */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f0f2f6;
+    --text-primary: #262730;
+    --text-secondary: #6c757d;
+    --accent-color: #007bff;
+    --border-color: #dee2e6;
+}
 
-/* Base mobile styles (320px+) */
+/* Dark theme custom properties (updated by JavaScript) */
+.dark-theme {
+    --bg-primary: #0e1117;
+    --bg-secondary: #262730;
+    --text-primary: #fafafa;
+    --text-secondary: #a6a6a6;
+    --accent-color: #ff6b6b;
+    --border-color: #333;
+}
+
+/* Enhanced dark mode styles */
+.dark-theme .stApp {
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    color: var(--text-primary);
+}
+
+.dark-theme .stSelectbox > div > div {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.dark-theme .stFileUploader section {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.dark-theme .stButton > button {
+    background: linear-gradient(135deg, var(--accent-color) 0%, #45a049 100%);
+    border: none;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Logo adaptive styling */
+.logo-adaptive {
+    transition: filter 0.3s ease;
+}
+
+.dark-theme .logo-adaptive {
+    filter: invert(1) hue-rotate(180deg) brightness(1.2);
+}
+
+.light-theme .logo-adaptive {
+    filter: none;
+}
+
+/* Enhanced dark mode UI components */
+.dark-theme .stTab {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.dark-theme .stTabs [data-baseweb="tab-list"] {
+    background-color: var(--bg-secondary);
+}
+
+.dark-theme .stTabs [data-baseweb="tab"] {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+.dark-theme .stTabs [aria-selected="true"] {
+    background-color: var(--accent-color) !important;
+    color: white !important;
+}
+
+.dark-theme .stMetric {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.dark-theme .stAlert {
+    background-color: rgba(255, 107, 107, 0.1);
+    border-left: 4px solid var(--accent-color);
+    color: var(--text-primary);
+}
+
+.dark-theme .stSuccess {
+    background-color: rgba(72, 187, 120, 0.1);
+    border-left: 4px solid #48bb78;
+}
+
+.dark-theme .stInfo {
+    background-color: rgba(66, 153, 225, 0.1);
+    border-left: 4px solid #4299e1;
+}
+
+.dark-theme .stWarning {
+    background-color: rgba(237, 137, 54, 0.1);
+    border-left: 4px solid #ed8936;
+}
+
+.dark-theme .stError {
+    background-color: rgba(245, 101, 101, 0.1);
+    border-left: 4px solid #f56565;
+}
+
+/* Enhanced light theme styling */
+.light-theme .stApp {
+    background: linear-gradient(135deg, #fafafa 0%, #f0f2f6 100%);
+}
+
+.light-theme .stButton > button {
+    background: linear-gradient(135deg, var(--accent-color) 0%, #0056b3 100%);
+    border: none;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.light-theme .stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* Responsive improvements */
+@media (prefers-color-scheme: dark) {
+    .main-heading {
+        color: var(--text-primary) !important;
+    }
+    
+    .stApp > header {
+        background-color: transparent;
+    }
+}
+
+/* Small screen styles (320px+) */
 @media screen and (max-width: 767px) {
     
     /* Main container adjustments */
@@ -251,20 +366,20 @@ mobile_css = """
         max-width: 100% !important;
     }
     
-    /* Sidebar mobile optimization */
+    /* Sidebar small screen optimization */
     .css-1d391kg {
         width: 100% !important;
         min-width: 100% !important;
     }
     
-    /* Logo adjustments for mobile */
+    /* Logo adjustments for small screens */
     .logo-container img {
         width: 80px !important;
         height: 80px !important;
         margin-bottom: 0.5rem !important;
     }
     
-    /* Main heading mobile */
+    /* Main heading small screens */
     .main-heading {
         font-size: 1.2rem !important;
         text-align: center;
@@ -272,7 +387,7 @@ mobile_css = """
         line-height: 1.3;
     }
     
-    /* Tab navigation mobile */
+    /* Tab navigation small screens */
     .stTabs [data-baseweb="tab-list"] {
         flex-wrap: wrap;
         justify-content: center;
@@ -290,7 +405,7 @@ mobile_css = """
         margin: 2px;
     }
     
-    /* Buttons mobile optimization */
+    /* Buttons small screen optimization */
     .stButton > button {
         width: 100% !important;
         margin: 0.25rem 0 !important;
@@ -301,7 +416,7 @@ mobile_css = """
         touch-action: manipulation;
     }
     
-    /* Columns mobile stacking */
+    /* Columns small screen stacking */
     .row-widget {
         flex-direction: column !important;
     }
@@ -311,7 +426,7 @@ mobile_css = """
         margin-bottom: 1rem !important;
     }
     
-    /* File uploader mobile */
+    /* File uploader small screens */
     .stFileUploader > div {
         padding: 1rem 0.5rem !important;
         min-height: 80px !important;
@@ -320,7 +435,7 @@ mobile_css = """
         justify-content: center;
     }
     
-    /* Input fields mobile */
+    /* Input fields small screens */
     .stTextInput > div > div > input,
     .stSelectbox > div > div > select,
     .stNumberInput > div > div > input {
@@ -330,20 +445,20 @@ mobile_css = """
         border-radius: 8px !important;
     }
     
-    /* Data display mobile */
+    /* Data display small screens */
     .stDataFrame {
         font-size: 0.8rem !important;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
     
-    /* Charts mobile */
+    /* Charts small screens */
     .js-plotly-plot {
         margin: 0.5rem 0 !important;
     }
 }
 
-/* Small mobile devices (320px - 480px) */
+/* Very small devices (320px - 480px) */
 @media screen and (max-width: 480px) {
     .main .block-container {
         padding: 0.75rem 0.25rem !important;
@@ -384,25 +499,18 @@ mobile_css = """
 }
 
 /* Responsive utility classes */
-.mobile-only { display: none; }
-.mobile-center { text-align: center !important; }
-.mobile-full-width { width: 100% !important; }
-
-@media screen and (max-width: 767px) {
-    .mobile-only { display: block !important; }
-    .mobile-hide { display: none !important; }
-    .desktop-only { display: none !important; }
-}
+.responsive-center { text-align: center !important; }
+.responsive-full-width { width: 100% !important; }
 """
 
-st.markdown(f"<style>{mobile_css}</style>", unsafe_allow_html=True)
+st.markdown(f"<style>{responsive_css}</style>", unsafe_allow_html=True)
 
-# Add mobile viewport and interaction improvements
+# Add responsive viewport and interaction improvements
 st.markdown(
     """
     <script>
-    // Mobile viewport detection and optimization
-    function optimizeForMobile() {
+    // Viewport detection and optimization
+    function optimizeForDevice() {
         const isMobile = window.innerWidth < 768;
         const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1024;
         
@@ -427,11 +535,11 @@ st.markdown(
     }
     
     // Run on load and resize
-    window.addEventListener('load', optimizeForMobile);
-    window.addEventListener('resize', optimizeForMobile);
-    optimizeForMobile();
+    window.addEventListener('load', optimizeForDevice);
+    window.addEventListener('resize', optimizeForDevice);
+    optimizeForDevice();
     
-    // Improve scrolling on mobile
+    // Improve scrolling on small screens
     if (window.innerWidth < 768) {
         document.body.style.WebkitOverflowScrolling = 'touch';
         document.body.style.scrollBehavior = 'smooth';
@@ -745,16 +853,17 @@ class SessionManager:
 
 
 def render_header():
-    """Render the main header with mobile-responsive branding."""
-    # Mobile-responsive layout - no columns on mobile, centered content
+    """Render the main header with responsive branding."""
+    # Responsive layout - centered content adapts to screen size
     st.markdown(
         """
-        <div style="text-align: center; padding: clamp(1rem, 3vw, 2rem) 0; position: relative;" class="musical-notes mobile-center">
+        <div style="text-align: center; padding: clamp(1rem, 3vw, 2rem) 0; position: relative;" class="musical-notes responsive-center">
             <div class="logo-container" style="margin-bottom: 1rem;">
                 <img src="data:image/png;base64,{logo_base64}" 
+                     class="logo-adaptive"
                      style="width: clamp(60px, 15vw, 150px); height: clamp(60px, 15vw, 150px); 
                             margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); 
-                            transition: transform 0.3s ease;" 
+                            transition: transform 0.3s ease, filter 0.3s ease;" 
                      alt="a mega music comparator Logo"/>
             </div>
             <h1 class="main-heading" style="font-size: clamp(1.1rem, 4vw, 1.4rem); color: #2c3e50; 
@@ -766,7 +875,7 @@ def render_header():
                         margin: 1rem auto; border-radius: 2px;"></div>
         </div>
         """.format(
-            logo_base64=get_logo_base64()
+            logo_base64=get_logo_base64()[0] if get_logo_base64()[0] else ""
         ),
         unsafe_allow_html=True,
     )
@@ -774,12 +883,16 @@ def render_header():
 
 def render_sidebar():
     """Render the sidebar with file uploads and library management."""
-    # Small logo in sidebar
-    if get_logo_base64():
+    # Small adaptive logo in sidebar
+    logo_data = get_logo_base64()
+    if logo_data[0]:
         st.sidebar.markdown(
             f"""
         <div style="text-align: center; padding: 0.5rem 0;">
-            <img src="data:image/png;base64,{get_logo_base64()}" style="width: 50px; height: 50px; opacity: 0.9;" alt="a mega music comparator"/>
+            <img src="data:image/png;base64,{logo_data[0]}" 
+                 class="logo-adaptive" 
+                 style="width: 50px; height: 50px; opacity: 0.9; transition: filter 0.3s ease;" 
+                 alt="a mega music comparator"/>
         </div>
         """,
             unsafe_allow_html=True,
@@ -1950,7 +2063,7 @@ def display_enrichment_results(enriched_results):
 
 
 def parse_library_file(uploaded_file, library_name):
-    """Simple mobile-optimized library parser."""
+    """Simple optimized library parser."""
     try:
         from musicweb.platforms import create_parser
         from musicweb.platforms.detection import detect_platform
@@ -1974,125 +2087,12 @@ def parse_library_file(uploaded_file, library_name):
         return None
 
 
-def render_mobile_app():
-    """Render mobile-optimized application with essential features only."""
-    # Mobile header
-    st.markdown(
-        """
-    <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin-bottom: 20px;">
-        <h1 style="margin: 0; font-size: 1.5em;">🎵 a mega music comparator</h1>
-        <p style="margin: 5px 0; opacity: 0.9; font-size: 0.9em;">Mobile Edition - Essential Features</p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    # Mobile notice with desktop override option
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.info("📱 Mobile Edition - Optimized for touch devices")
-    with col2:
-        if st.button("🖥️ Desktop"):
-            st.session_state.mobile_detected = False
-            st.rerun()
-
-    # Simple mobile tabs - only essential features
-    tab1, tab2, tab3 = st.tabs(["🔍 Compare", "📝 Upload", "ℹ️ Help"])
-
-    with tab1:
-        st.subheader("🔍 Compare Music Libraries")
-        st.write("Upload two music library files to compare them.")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**First Library**")
-            file1 = st.file_uploader(
-                "Choose first file",
-                key="mobile_file1",
-                type=["json", "csv", "txt", "xml"],
-            )
-        with col2:
-            st.write("**Second Library**")
-            file2 = st.file_uploader(
-                "Choose second file",
-                key="mobile_file2",
-                type=["json", "csv", "txt", "xml"],
-            )
-
-        if file1 and file2:
-            if st.button(
-                "🔄 Compare Libraries", type="primary", use_container_width=True
-            ):
-                try:
-                    with st.spinner("Comparing libraries..."):
-                        # Simple comparison without heavy processing
-                        lib1 = parse_library_file(file1, "Library 1")
-                        lib2 = parse_library_file(file2, "Library 2")
-
-                        if lib1 and lib2:
-                            # Basic comparison stats only
-                            st.success("✅ Comparison Complete!")
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Library 1 Tracks", len(lib1.tracks))
-                            with col2:
-                                st.metric("Library 2 Tracks", len(lib2.tracks))
-                            with col3:
-                                # Simple overlap calculation
-                                common = len(
-                                    set(t.title.lower() for t in lib1.tracks)
-                                    & set(t.title.lower() for t in lib2.tracks)
-                                )
-                                st.metric("Common Tracks", common)
-
-                            st.info(
-                                "💡 For detailed analysis and visualizations, please use the desktop version."
-                            )
-                except Exception as e:
-                    st.error(f"Error during comparison: {str(e)}")
-
-    with tab2:
-        st.subheader("📝 File Upload Guide")
-        st.write("**Supported formats:**")
-        st.write("• Spotify: JSON export files")
-        st.write("• Apple Music: XML library files")
-        st.write("• YouTube Music: CSV exports")
-        st.write("• Generic: CSV files with title, artist columns")
-
-        st.write("**Tips for mobile:**")
-        st.write("• Keep files under 10MB for best performance")
-        st.write("• Close other browser tabs to free memory")
-        st.write("• Use WiFi for large file uploads")
-
-    with tab3:
-        st.subheader("ℹ️ Mobile Help")
-        st.write("**Quick Start:**")
-        st.write("1. Export your music libraries from streaming services")
-        st.write("2. Upload both files using the Compare tab")
-        st.write("3. View basic comparison statistics")
-
-        st.write("**Need more features?**")
-        st.write(
-            "For advanced analysis, charts, and playlist management, please visit this app on a desktop browser."
-        )
-
-        st.write("**Having issues?**")
-        st.write("Try refreshing the page or clearing your browser cache.")
-
-
 def main():
     """Main application entry point."""
     # Initialize session
     SessionManager.initialize_session()
 
-    # Check if mobile device and provide lightweight experience
-    is_mobile = st.session_state.get("mobile_detected", False)
-
-    if is_mobile:
-        render_mobile_app()
-        return
-
-    # Render full desktop experience
+    # Render responsive app for all devices
     render_header()
     render_sidebar()
 
