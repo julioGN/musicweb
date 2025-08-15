@@ -33,6 +33,29 @@ from musicweb.core.models import Library, Track
 from musicweb.platforms import create_parser
 from musicweb.platforms.detection import detect_platform
 
+# Import responsive design utilities
+try:
+    from musicweb.web.components.responsive import ResponsiveDesign
+except ImportError:
+    # Fallback if responsive module not available
+    class ResponsiveDesign:
+        @staticmethod
+        def get_mobile_css():
+            return ""
+
+        @staticmethod
+        def mobile_button(label, **kwargs):
+            return st.button(label, **kwargs)
+
+        @staticmethod
+        def mobile_columns(*ratios):
+            return st.columns(ratios)
+
+        @staticmethod
+        def mobile_metric(label, value, delta=None):
+            return st.metric(label, value, delta)
+
+
 try:
     from musicweb.integrations.playlist import PlaylistManager
 except Exception:
@@ -94,12 +117,223 @@ def get_logo_base64():
             return ""
 
 
-# Page configuration
+# Page configuration - Mobile responsive
 st.set_page_config(
     page_title="a mega music comparator",
     page_icon="🕸️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # Auto-collapse on mobile
+    menu_items={
+        "Get Help": None,
+        "Report a bug": None,
+        "About": """
+        # a mega music comparator
+        A mobile-friendly tool for comparing music libraries across platforms.
+        """,
+    },
+)
+
+# Inject mobile-responsive CSS
+mobile_css = """
+/* Mobile-First Responsive Design for MusicWeb */
+
+/* Base mobile styles (320px+) */
+@media screen and (max-width: 767px) {
+    
+    /* Main container adjustments */
+    .main .block-container {
+        padding: 1rem 0.5rem !important;
+        max-width: 100% !important;
+    }
+    
+    /* Sidebar mobile optimization */
+    .css-1d391kg {
+        width: 100% !important;
+        min-width: 100% !important;
+    }
+    
+    /* Logo adjustments for mobile */
+    .logo-container img {
+        width: 80px !important;
+        height: 80px !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* Main heading mobile */
+    .main-heading {
+        font-size: 1.2rem !important;
+        text-align: center;
+        margin: 0.5rem 0 !important;
+        line-height: 1.3;
+    }
+    
+    /* Tab navigation mobile */
+    .stTabs [data-baseweb="tab-list"] {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px !important;
+        padding: 0 0.5rem;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 8px 12px !important;
+        font-size: 0.85rem !important;
+        min-width: auto !important;
+        flex: 1 1 auto;
+        text-align: center;
+        border-radius: 6px;
+        margin: 2px;
+    }
+    
+    /* Buttons mobile optimization */
+    .stButton > button {
+        width: 100% !important;
+        margin: 0.25rem 0 !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.9rem !important;
+        border-radius: 8px;
+        min-height: 44px !important;
+        touch-action: manipulation;
+    }
+    
+    /* Columns mobile stacking */
+    .row-widget {
+        flex-direction: column !important;
+    }
+    
+    .row-widget > div {
+        width: 100% !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* File uploader mobile */
+    .stFileUploader > div {
+        padding: 1rem 0.5rem !important;
+        min-height: 80px !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Input fields mobile */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stNumberInput > div > div > input {
+        font-size: 16px !important;
+        padding: 0.75rem !important;
+        min-height: 44px !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Data display mobile */
+    .stDataFrame {
+        font-size: 0.8rem !important;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Charts mobile */
+    .js-plotly-plot {
+        margin: 0.5rem 0 !important;
+    }
+}
+
+/* Small mobile devices (320px - 480px) */
+@media screen and (max-width: 480px) {
+    .main .block-container {
+        padding: 0.75rem 0.25rem !important;
+    }
+    
+    .logo-container img {
+        width: 60px !important;
+        height: 60px !important;
+    }
+    
+    .main-heading {
+        font-size: 1.1rem !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 6px 8px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+    .stButton > button,
+    .stSelectbox,
+    .stFileUploader,
+    button,
+    [role="button"] {
+        min-height: 44px !important;
+        min-width: 44px !important;
+    }
+    
+    .stButton > button:focus,
+    input:focus,
+    select:focus {
+        outline: 2px solid #007bff !important;
+        outline-offset: 2px !important;
+    }
+}
+
+/* Responsive utility classes */
+.mobile-only { display: none; }
+.mobile-center { text-align: center !important; }
+.mobile-full-width { width: 100% !important; }
+
+@media screen and (max-width: 767px) {
+    .mobile-only { display: block !important; }
+    .mobile-hide { display: none !important; }
+    .desktop-only { display: none !important; }
+}
+"""
+
+st.markdown(f"<style>{mobile_css}</style>", unsafe_allow_html=True)
+
+# Add mobile viewport and interaction improvements
+st.markdown(
+    """
+    <script>
+    // Mobile viewport detection and optimization
+    function optimizeForMobile() {
+        const isMobile = window.innerWidth < 768;
+        const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1024;
+        
+        document.body.setAttribute('data-device', 
+            isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop'
+        );
+        
+        // Prevent zoom on iOS when focusing inputs
+        if (isMobile && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport) {
+                viewport.setAttribute('content', 
+                    'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+                );
+            }
+        }
+        
+        // Add touch-friendly classes
+        if ('ontouchstart' in window) {
+            document.body.classList.add('touch-device');
+        }
+    }
+    
+    // Run on load and resize
+    window.addEventListener('load', optimizeForMobile);
+    window.addEventListener('resize', optimizeForMobile);
+    optimizeForMobile();
+    
+    // Improve scrolling on mobile
+    if (window.innerWidth < 768) {
+        document.body.style.WebkitOverflowScrolling = 'touch';
+        document.body.style.scrollBehavior = 'smooth';
+    }
+    </script>
+    """,
+    unsafe_allow_html=True,
 )
 
 # Enhanced CSS for production-ready UI
@@ -406,26 +640,31 @@ class SessionManager:
 
 
 def render_header():
-    """Render the main header with enhanced branding."""
-    col1, col2, col3 = st.columns([1, 2, 1])
-
-    with col2:
-        st.markdown(
-            """
-        <div style="text-align: center; padding: 2rem 0; position: relative;" class="musical-notes">
+    """Render the main header with mobile-responsive branding."""
+    # Mobile-responsive layout - no columns on mobile, centered content
+    st.markdown(
+        """
+        <div style="text-align: center; padding: clamp(1rem, 3vw, 2rem) 0; position: relative;" class="musical-notes mobile-center">
             <div class="logo-container" style="margin-bottom: 1rem;">
-                <img src="data:image/png;base64,{logo_base64}" style="width: 150px; height: 150px; margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); transition: transform 0.3s ease;" alt="a mega music comparator Logo"/>
+                <img src="data:image/png;base64,{logo_base64}" 
+                     style="width: clamp(60px, 15vw, 150px); height: clamp(60px, 15vw, 150px); 
+                            margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); 
+                            transition: transform 0.3s ease;" 
+                     alt="a mega music comparator Logo"/>
             </div>
-            <p style="font-size: 1.4rem; color: #2c3e50; margin: 0; font-weight: 600; letter-spacing: 0.5px;">
+            <h1 class="main-heading" style="font-size: clamp(1.1rem, 4vw, 1.4rem); color: #2c3e50; 
+                                           margin: 0; font-weight: 600; letter-spacing: 0.5px;">
                 a mega music comparator
-            </p>
-            <div style="width: 120px; height: 3px; background: linear-gradient(45deg, #667eea, #764ba2); margin: 1rem auto; border-radius: 2px;"></div>
+            </h1>
+            <div style="width: clamp(80px, 20vw, 120px); height: 3px; 
+                        background: linear-gradient(45deg, #667eea, #764ba2); 
+                        margin: 1rem auto; border-radius: 2px;"></div>
         </div>
         """.format(
-                logo_base64=get_logo_base64()
-            ),
-            unsafe_allow_html=True,
-        )
+            logo_base64=get_logo_base64()
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def render_sidebar():
