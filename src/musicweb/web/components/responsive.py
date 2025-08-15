@@ -2,13 +2,14 @@
 Responsive design utilities for mobile-friendly interface.
 """
 
+from typing import Dict, Optional, Tuple
+
 import streamlit as st
-from typing import Dict, Tuple, Optional
 
 
 class ResponsiveDesign:
     """Utilities for responsive design and mobile detection."""
-    
+
     @staticmethod
     def get_device_type() -> str:
         """
@@ -22,7 +23,7 @@ class ResponsiveDesign:
             return "mobile"  # Default to mobile-first approach
         except:
             return "mobile"
-    
+
     @staticmethod
     def get_mobile_css() -> str:
         """Get mobile-optimized CSS styles."""
@@ -60,12 +61,12 @@ class ResponsiveDesign:
         </script>
         </style>
         """
-    
+
     @staticmethod
     def create_mobile_layout(content_func, sidebar_func=None):
         """
         Create a mobile-optimized layout.
-        
+
         Args:
             content_func: Function that renders main content
             sidebar_func: Optional function that renders sidebar content
@@ -76,45 +77,47 @@ class ResponsiveDesign:
             with st.container():
                 st.markdown('<div class="mobile-sidebar">', unsafe_allow_html=True)
                 sidebar_func()
-                st.markdown('</div>', unsafe_allow_html=True)
-        
+                st.markdown("</div>", unsafe_allow_html=True)
+
         # Main content
         with st.container():
             st.markdown('<div class="mobile-content">', unsafe_allow_html=True)
             content_func()
-            st.markdown('</div>', unsafe_allow_html=True)
-    
+            st.markdown("</div>", unsafe_allow_html=True)
+
     @staticmethod
     def mobile_columns(*ratios) -> Tuple:
         """
         Create responsive columns that stack on mobile.
-        
+
         Args:
             *ratios: Column ratios for desktop view
-            
+
         Returns:
             Tuple of column objects
         """
         # On mobile, we'll stack columns vertically using CSS
         cols = st.columns(ratios)
-        
+
         # Add mobile-responsive classes
         for i, col in enumerate(cols):
-            col.markdown(f'<div class="responsive-col responsive-col-{i}">', 
-                        unsafe_allow_html=True)
-        
+            col.markdown(
+                f'<div class="responsive-col responsive-col-{i}">',
+                unsafe_allow_html=True,
+            )
+
         return cols
-    
+
     @staticmethod
     def mobile_button(label: str, key: Optional[str] = None, **kwargs) -> bool:
         """
         Create a mobile-optimized button.
-        
+
         Args:
             label: Button text
             key: Unique key for the button
             **kwargs: Additional arguments for st.button
-            
+
         Returns:
             Boolean indicating if button was clicked
         """
@@ -132,16 +135,16 @@ class ResponsiveDesign:
             }}
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-        
+
         return st.button(label, key=key, **kwargs)
-    
+
     @staticmethod
     def mobile_file_uploader(label: str, **kwargs):
         """
         Create a mobile-optimized file uploader.
-        
+
         Args:
             label: Uploader label
             **kwargs: Additional arguments for st.file_uploader
@@ -165,16 +168,16 @@ class ResponsiveDesign:
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-        
+
         return st.file_uploader(label, **kwargs)
-    
+
     @staticmethod
     def mobile_selectbox(label: str, options, **kwargs):
         """
         Create a mobile-optimized selectbox.
-        
+
         Args:
             label: Selectbox label
             options: List of options
@@ -192,16 +195,16 @@ class ResponsiveDesign:
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-        
+
         return st.selectbox(label, options, **kwargs)
-    
+
     @staticmethod
     def mobile_text_input(label: str, **kwargs):
         """
         Create a mobile-optimized text input.
-        
+
         Args:
             label: Input label
             **kwargs: Additional arguments for st.text_input
@@ -224,16 +227,16 @@ class ResponsiveDesign:
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-        
+
         return st.text_input(label, **kwargs)
-    
+
     @staticmethod
     def mobile_metric(label: str, value: str, delta: Optional[str] = None):
         """
         Create a mobile-optimized metric display.
-        
+
         Args:
             label: Metric label
             value: Metric value
@@ -284,53 +287,57 @@ class ResponsiveDesign:
             }}
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-    
+
     @staticmethod
     def mobile_chart_container():
         """
         Create a mobile-optimized container for charts.
         """
         return st.container()
-    
+
     @staticmethod
     def get_responsive_chart_config() -> Dict:
         """
         Get responsive configuration for Plotly charts.
-        
+
         Returns:
             Dictionary with responsive chart configuration
         """
         return {
-            'displayModeBar': False,  # Hide toolbar on mobile
-            'responsive': True,
-            'displaylogo': False,
-            'modeBarButtonsToRemove': [
-                'pan2d', 'lasso2d', 'select2d', 'autoScale2d',
-                'hoverClosestCartesian', 'hoverCompareCartesian'
+            "displayModeBar": False,  # Hide toolbar on mobile
+            "responsive": True,
+            "displaylogo": False,
+            "modeBarButtonsToRemove": [
+                "pan2d",
+                "lasso2d",
+                "select2d",
+                "autoScale2d",
+                "hoverClosestCartesian",
+                "hoverCompareCartesian",
             ],
-            'layout': {
-                'margin': {'l': 20, 'r': 20, 't': 40, 'b': 40},
-                'font': {'size': 12},
-                'showlegend': True,
-                'legend': {
-                    'orientation': 'h',
-                    'y': -0.2,
-                    'x': 0.5,
-                    'xanchor': 'center'
-                }
-            }
+            "layout": {
+                "margin": {"l": 20, "r": 20, "t": 40, "b": 40},
+                "font": {"size": 12},
+                "showlegend": True,
+                "legend": {
+                    "orientation": "h",
+                    "y": -0.2,
+                    "x": 0.5,
+                    "xanchor": "center",
+                },
+            },
         }
-    
+
     @staticmethod
     def mobile_navigation_menu(options: Dict[str, str]) -> str:
         """
         Create a mobile-friendly navigation menu.
-        
+
         Args:
             options: Dictionary of {label: value} for menu options
-            
+
         Returns:
             Selected option value
         """
@@ -375,13 +382,13 @@ class ResponsiveDesign:
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
-        
+
         # Use selectbox for mobile navigation
         return st.selectbox(
             "Navigate to:",
             options=list(options.keys()),
             format_func=lambda x: options.get(x, x),
-            key="mobile_nav"
+            key="mobile_nav",
         )

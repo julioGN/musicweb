@@ -9,6 +9,9 @@ across multiple streaming platforms.
 import io
 import json
 import sqlite3
+
+# Handle imports for deployment environments
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -17,16 +20,23 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import streamlit as st
 
-# Handle imports for deployment environments
-import sys
-from pathlib import Path
-
 # Add src directory to path for Streamlit Cloud deployment
-current_file = Path(__file__).resolve()
-src_dir = current_file.parent.parent.parent
-if src_dir.name == "src" or (src_dir / "musicweb").exists():
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
+try:
+    current_file = Path(__file__).resolve()
+    src_dir = current_file.parent.parent.parent
+    if src_dir.name == "src" or (src_dir / "musicweb").exists():
+        if str(src_dir) not in sys.path:
+            sys.path.insert(0, str(src_dir))
+except NameError:
+    # __file__ not defined when exec'd directly, try to find src dir
+    import os
+    current_dir = Path(os.getcwd())
+    src_candidates = [current_dir / "src", current_dir.parent / "src"]
+    for src_dir in src_candidates:
+        if src_dir.exists() and (src_dir / "musicweb").exists():
+            if str(src_dir) not in sys.path:
+                sys.path.insert(0, str(src_dir))
+            break
 
 from musicweb.core.comparison import LibraryComparator
 from musicweb.core.models import Library, Track
