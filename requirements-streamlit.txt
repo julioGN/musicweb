@@ -1,0 +1,34 @@
+# Streamlit Cloud Compatible Requirements
+# Optimized for Python 3.8+ deployment environments
+
+# Core data processing
+pandas>=1.5.0,<3.0.0
+numpy>=1.21.0,<2.0.0
+
+# Web framework
+streamlit>=1.25.0,<2.0.0
+
+# Visualization
+plotly>=5.10.0,<6.0.0
+
+# Fuzzy string matching - compatible with older Python
+rapidfuzz>=2.0.0,<4.0.0
+
+# YouTube Music API - compatible version
+ytmusicapi>=1.5.0,<2.0.0
+
+# HTTP requests
+requests>=2.25.0,<3.0.0
+
+# Plotting (optional, can be excluded if causing issues)
+matplotlib>=3.5.0,<4.0.0
+matplotlib-venn>=0.11.7,<1.0.0
+
+# Excel support (optional)
+openpyxl>=3.0.0,<4.0.0
+
+# CLI support
+click>=8.0.0,<9.0.0
+
+# Python compatibility
+importlib_resources>=5.0.0; python_version < "3.9"

@@ -27,17 +27,17 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
-    "streamlit>=1.28.0",
-    "plotly>=5.15.0",
-    "rapidfuzz>=3.0.0",
-    "ytmusicapi>=1.11.0",
-    "requests>=2.31.0",
-    "matplotlib>=3.7.0",
-    "matplotlib-venn>=0.11.9",
-    "openpyxl>=3.1.0",
-    "click>=8.0.0",
+    "pandas>=1.5.0,<3.0.0",
+    "numpy>=1.21.0,<2.0.0",
+    "streamlit>=1.25.0,<2.0.0",
+    "plotly>=5.10.0,<6.0.0",
+    "rapidfuzz>=2.0.0,<4.0.0",
+    "ytmusicapi>=1.5.0,<2.0.0",
+    "requests>=2.25.0,<3.0.0",
+    "matplotlib>=3.5.0,<4.0.0",
+    "matplotlib-venn>=0.11.7,<1.0.0",
+    "openpyxl>=3.0.0,<4.0.0",
+    "click>=8.0.0,<9.0.0",
     "importlib_resources>=5.0.0; python_version < '3.9'",
 ]
 
