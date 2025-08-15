@@ -8,12 +8,12 @@ and optionally create a playlist containing the duplicates.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import re
 
 try:
     from ytmusicapi import YTMusic  # type: ignore
@@ -39,7 +39,9 @@ class RankedDuplicate:
 class YouTubeMusicDeduplicator:
     """Detect and manage duplicates in a YouTube Music library."""
 
-    def __init__(self, headers_auth_path: Optional[str] = None, ytmusic: Optional[YTMusic] = None):
+    def __init__(
+        self, headers_auth_path: Optional[str] = None, ytmusic: Optional[YTMusic] = None
+    ):
         self.headers_auth_path = str(headers_auth_path) if headers_auth_path else None
         self.ytmusic: Optional[YTMusic] = ytmusic
         self.library_songs: List[Dict[str, Any]] = []
@@ -52,7 +54,9 @@ class YouTubeMusicDeduplicator:
     def authenticate(self) -> bool:
         """Authenticate with YouTube Music using headers_auth.json."""
         if not self.is_available():
-            raise RuntimeError("ytmusicapi not installed. Install with: pip install ytmusicapi")
+            raise RuntimeError(
+                "ytmusicapi not installed. Install with: pip install ytmusicapi"
+            )
 
         if self.ytmusic is not None:
             # Already authenticated
@@ -89,7 +93,9 @@ class YouTubeMusicDeduplicator:
     def _similarity(cls, a: str, b: str) -> float:
         return SequenceMatcher(None, cls._normalize(a), cls._normalize(b)).ratio()
 
-    def find_duplicates(self, similarity_threshold: float = 0.85) -> List[Dict[str, Any]]:
+    def find_duplicates(
+        self, similarity_threshold: float = 0.85
+    ) -> List[Dict[str, Any]]:
         """Group likely duplicates using title+artist similarity.
 
         Returns a list of groups with ranked duplicate entries.
@@ -149,7 +155,9 @@ class YouTubeMusicDeduplicator:
         self.duplicate_groups = groups
         return groups
 
-    def _rank_duplicates(self, duplicates: List[Dict[str, Any]]) -> List[RankedDuplicate]:
+    def _rank_duplicates(
+        self, duplicates: List[Dict[str, Any]]
+    ) -> List[RankedDuplicate]:
         def quality_score(song: Dict[str, Any]) -> int:
             score = 0
             album = song.get("album", {}) or {}
@@ -185,7 +193,9 @@ class YouTubeMusicDeduplicator:
                 if "single" in album_name.lower()
                 else ("Album" if album_name and len(album_name) > 3 else "Unknown")
             )
-            is_explicit = bool(s.get("isExplicit")) or ("explicit" in str(s.get("title", "")).lower())
+            is_explicit = bool(s.get("isExplicit")) or (
+                "explicit" in str(s.get("title", "")).lower()
+            )
             ranked.append(
                 RankedDuplicate(
                     id=str(s.get("videoId", "")),
@@ -195,9 +205,11 @@ class YouTubeMusicDeduplicator:
                     quality=qlabel,
                     quality_score=q,
                     duration=str(s.get("duration", "")),
-                    thumbnail=(s.get("thumbnails", [{}])[-1] or {}).get("url", "")
-                    if s.get("thumbnails")
-                    else "",
+                    thumbnail=(
+                        (s.get("thumbnails", [{}])[-1] or {}).get("url", "")
+                        if s.get("thumbnails")
+                        else ""
+                    ),
                     artists=[a.get("name", "") for a in s.get("artists", [])],
                     is_explicit=is_explicit,
                     original_data=s,
@@ -207,7 +219,9 @@ class YouTubeMusicDeduplicator:
         ranked.sort(key=lambda x: x.quality_score, reverse=True)
         return ranked
 
-    def create_playlist(self, title: str, song_ids: List[str], description: str = "") -> str:
+    def create_playlist(
+        self, title: str, song_ids: List[str], description: str = ""
+    ) -> str:
         """Create a YouTube Music playlist and add given `videoId`s."""
         if not self.ytmusic:
             raise RuntimeError("Not authenticated with YouTube Music")
@@ -237,7 +251,9 @@ class YouTubeMusicDeduplicator:
 
         ids: List[str] = []
         if include_group_ids:
-            chosen = [g for g in self.duplicate_groups if g["id"] in set(include_group_ids)]
+            chosen = [
+                g for g in self.duplicate_groups if g["id"] in set(include_group_ids)
+            ]
         else:
             chosen = self.duplicate_groups
 
@@ -250,7 +266,12 @@ class YouTubeMusicDeduplicator:
                     exp_flags.append(bool(d.is_explicit))
                 else:
                     dup_ids.append(str(d.get("id", "")))
-                    exp_flags.append(bool(d.get("is_explicit") or ("explicit" in str(d.get("title", "")).lower())))
+                    exp_flags.append(
+                        bool(
+                            d.get("is_explicit")
+                            or ("explicit" in str(d.get("title", "")).lower())
+                        )
+                    )
 
             if not dup_ids:
                 continue
@@ -272,8 +293,12 @@ class YouTubeMusicDeduplicator:
         if not ids:
             return {"success": False, "error": "No songs to add"}
 
-        playlist_name = name or f"🗂️ True Duplicates ({datetime.now().strftime('%Y-%m-%d')})"
-        playlist_id = self.create_playlist(playlist_name, ids, "Duplicate songs playlist")
+        playlist_name = (
+            name or f"🗂️ True Duplicates ({datetime.now().strftime('%Y-%m-%d')})"
+        )
+        playlist_id = self.create_playlist(
+            playlist_name, ids, "Duplicate songs playlist"
+        )
         return {
             "success": True,
             "playlist_id": playlist_id,

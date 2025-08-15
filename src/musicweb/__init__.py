@@ -11,9 +11,10 @@ __email__ = "contact@musicweb.app"
 __license__ = "MIT"
 __description__ = "Professional Music Library Management Suite"
 
-# Import main classes for easy access
-from .core.models import Track, Library
 from .core.comparison import LibraryComparator
+
+# Import main classes for easy access
+from .core.models import Library, Track
 from .platforms import create_parser
 from .platforms.detection import detect_platform
 
@@ -37,7 +38,7 @@ __all__ = [
     "__license__",
     "__description__",
     "Track",
-    "Library", 
+    "Library",
     "LibraryComparator",
     "create_parser",
     "detect_platform",

@@ -7,13 +7,13 @@ using the LibraryComparator/TrackMatcher for fuzzy matching.
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict, Any
-import csv
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..core.models import Track, Library
 from ..core.comparison import LibraryComparator
+from ..core.models import Library, Track
 
 
 @dataclass
@@ -72,11 +72,19 @@ def parse_playlist_bytes(data: bytes) -> List[PlaylistItem]:
             artist = row[i_artist].strip() if i_artist < len(row) else ""
             if not (title and artist):
                 continue
-            album = row[i_album].strip() if (i_album is not None and i_album < len(row)) else None
+            album = (
+                row[i_album].strip()
+                if (i_album is not None and i_album < len(row))
+                else None
+            )
             duration = None
             if i_time is not None and i_time < len(row):
                 duration = _parse_time_to_seconds(row[i_time].strip())
-            items.append(PlaylistItem(title=title, artist=artist, album=album or None, duration=duration))
+            items.append(
+                PlaylistItem(
+                    title=title, artist=artist, album=album or None, duration=duration
+                )
+            )
         return items
 
     # Otherwise assume simple per-line format: "Artist - Title" or "Title - Artist"
@@ -127,10 +135,20 @@ def audit_playlist(
     review_rows: List[Dict[str, Any]] = []
     missing_rows: List[Dict[str, Any]] = []
 
-    matcher = LibraryComparator(strict_mode=False, enable_duration=enable_duration, enable_album=enable_album).matcher
+    matcher = LibraryComparator(
+        strict_mode=False, enable_duration=enable_duration, enable_album=enable_album
+    ).matcher
 
     for it in items:
-        bucket, best, score = _match_item(it, library.music_tracks, exact_idx, base_idx, matcher, present_threshold, review_threshold)
+        bucket, best, score = _match_item(
+            it,
+            library.music_tracks,
+            exact_idx,
+            base_idx,
+            matcher,
+            present_threshold,
+            review_threshold,
+        )
         row = {
             "playlist_title": it.title,
             "playlist_artist": it.artist,
@@ -138,10 +156,10 @@ def audit_playlist(
             "playlist_duration": it.duration or "",
             "status": bucket,
             "confidence": round(score, 3),
-            "match_title": getattr(best, 'title', '') or '',
-            "match_artist": getattr(best, 'artist', '') or '',
-            "match_album": getattr(best, 'album', '') or '',
-            "match_duration": getattr(best, 'duration', '') or '',
+            "match_title": getattr(best, "title", "") or "",
+            "match_artist": getattr(best, "artist", "") or "",
+            "match_album": getattr(best, "album", "") or "",
+            "match_duration": getattr(best, "duration", "") or "",
         }
         if bucket == "present":
             present_rows.append(row)
@@ -166,6 +184,7 @@ def _build_indices(tracks: List[Track]):
 
 def _strip_version_tokens(title: str) -> str:
     import re
+
     if not title:
         return ""
     patterns = [
@@ -201,7 +220,13 @@ def _match_item(
     present_threshold: float,
     review_threshold: float,
 ) -> Tuple[str, Optional[Track], float]:
-    source = Track(title=item.title, artist=item.artist, album=item.album or None, duration=item.duration or None, platform="playlist")
+    source = Track(
+        title=item.title,
+        artist=item.artist,
+        album=item.album or None,
+        duration=item.duration or None,
+        platform="playlist",
+    )
 
     # 1) Exact normalized
     key = (source.normalized_title, source.normalized_artist)
@@ -246,4 +271,3 @@ def _match_item(
     if best and best_score >= review_threshold:
         return "review", best, best_score
     return "missing", None, best_score or 0.0
-
