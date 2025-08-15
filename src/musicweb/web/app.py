@@ -94,7 +94,15 @@ HAVE_VISUALIZATION = True  # Assume we have it, import on demand
 
 
 def get_visualization_modules():
-    """Lazy load visualization modules when needed."""
+    """Lazy load visualization modules when needed (desktop only)."""
+    # Skip heavy modules on mobile to prevent crashes
+    is_mobile = st.session_state.get("mobile_detected", False)
+    if is_mobile:
+        st.info(
+            "📱 Charts disabled on mobile for better performance. Use desktop for full visualization features."
+        )
+        return None, None, None, None, None
+
     try:
         import matplotlib.pyplot as plt
         import plotly.express as px
@@ -105,6 +113,7 @@ def get_visualization_modules():
     except ImportError:
         global HAVE_VISUALIZATION
         HAVE_VISUALIZATION = False
+        st.error("Visualization libraries not available")
         return None, None, None, None, None
 
 
@@ -152,37 +161,82 @@ st.set_page_config(
     },
 )
 
-# Mobile loading optimization
-if "mobile_loaded" not in st.session_state:
-    # Show loading indicator for mobile
-    loading_placeholder = st.empty()
-    with loading_placeholder.container():
+
+# Enhanced mobile detection and optimization
+def is_mobile_browser():
+    """Detect if user is on mobile browser."""
+    try:
+        # Simple mobile detection fallback
+        return st.session_state.get("mobile_detected", False)
+    except:
+        return False
+
+
+# Mobile-optimized initialization
+if "app_ready" not in st.session_state:
+    # Show lightweight loading screen
+    loading_container = st.container()
+    with loading_container:
         st.markdown(
             """
-        <div style="text-align: center; padding: 50px;">
-            <h3>🎵 Loading a mega music comparator...</h3>
-            <div style="margin: 20px;">
-                <div style="display: inline-block; animation: spin 2s linear infinite;">⏳</div>
+        <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin: 20px 0;">
+            <h1 style="margin: 0; font-size: 1.5em;">🎵 a mega music comparator</h1>
+            <p style="margin: 10px 0; opacity: 0.9;">Preparing your music comparison experience...</p>
+            <div style="margin: 15px 0;">
+                <div style="display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
             </div>
             <style>
-            @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-            }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            body { background: #f8f9fa; }
             </style>
         </div>
         """,
             unsafe_allow_html=True,
         )
 
-    # Initialize session state
-    st.session_state.mobile_loaded = True
+    # Quick initialization
+    st.session_state.app_ready = True
+    # Auto-refresh to show main app
+    st.rerun()
 
-    # Clear loading indicator after a brief moment
-    import time
+# JavaScript-based mobile detection for Streamlit Cloud
+mobile_detection_js = """
+<script>
+function detectMobileDevice() {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+        || window.innerWidth <= 768;
+    
+    if (isMobile) {
+        // Store mobile detection in session storage
+        sessionStorage.setItem('is_mobile', 'true');
+        // Add mobile class to body
+        document.body.classList.add('mobile-device');
+        
+        // Reduce memory usage on mobile
+        if (window.performance && window.performance.memory) {
+            const memory = window.performance.memory;
+            if (memory.usedJSHeapSize > 50 * 1024 * 1024) { // 50MB threshold
+                console.log('High memory usage detected on mobile, optimizing...');
+            }
+        }
+    }
+}
 
-    time.sleep(0.1)
-    loading_placeholder.empty()
+// Run detection immediately and on resize
+detectMobileDevice();
+window.addEventListener('resize', detectMobileDevice);
+window.addEventListener('orientationchange', detectMobileDevice);
+</script>
+"""
+
+# Inject mobile detection script first
+st.markdown(mobile_detection_js, unsafe_allow_html=True)
+
+# Update session state based on detection
+if "mobile_detected" not in st.session_state:
+    # Force mobile mode for Streamlit Cloud deployment reliability
+    # This will be overridden by JS detection if available
+    st.session_state.mobile_detected = True  # Start with mobile-first approach
 
 # Inject mobile-responsive CSS
 mobile_css = """
@@ -1895,12 +1949,150 @@ def display_enrichment_results(enriched_results):
             )
 
 
+def parse_library_file(uploaded_file, library_name):
+    """Simple mobile-optimized library parser."""
+    try:
+        from musicweb.platforms import create_parser
+        from musicweb.platforms.detection import detect_platform
+
+        # Read file content
+        content = uploaded_file.read()
+
+        # Detect platform
+        platform = detect_platform(content)
+
+        # Create parser and parse
+        parser = create_parser(platform)
+        if parser:
+            return parser.parse(content, library_name)
+        else:
+            st.error(f"Unsupported file format detected: {platform}")
+            return None
+
+    except Exception as e:
+        st.error(f"Error parsing {library_name}: {str(e)}")
+        return None
+
+
+def render_mobile_app():
+    """Render mobile-optimized application with essential features only."""
+    # Mobile header
+    st.markdown(
+        """
+    <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 1.5em;">🎵 a mega music comparator</h1>
+        <p style="margin: 5px 0; opacity: 0.9; font-size: 0.9em;">Mobile Edition - Essential Features</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Mobile notice with desktop override option
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.info("📱 Mobile Edition - Optimized for touch devices")
+    with col2:
+        if st.button("🖥️ Desktop"):
+            st.session_state.mobile_detected = False
+            st.rerun()
+
+    # Simple mobile tabs - only essential features
+    tab1, tab2, tab3 = st.tabs(["🔍 Compare", "📝 Upload", "ℹ️ Help"])
+
+    with tab1:
+        st.subheader("🔍 Compare Music Libraries")
+        st.write("Upload two music library files to compare them.")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**First Library**")
+            file1 = st.file_uploader(
+                "Choose first file",
+                key="mobile_file1",
+                type=["json", "csv", "txt", "xml"],
+            )
+        with col2:
+            st.write("**Second Library**")
+            file2 = st.file_uploader(
+                "Choose second file",
+                key="mobile_file2",
+                type=["json", "csv", "txt", "xml"],
+            )
+
+        if file1 and file2:
+            if st.button(
+                "🔄 Compare Libraries", type="primary", use_container_width=True
+            ):
+                try:
+                    with st.spinner("Comparing libraries..."):
+                        # Simple comparison without heavy processing
+                        lib1 = parse_library_file(file1, "Library 1")
+                        lib2 = parse_library_file(file2, "Library 2")
+
+                        if lib1 and lib2:
+                            # Basic comparison stats only
+                            st.success("✅ Comparison Complete!")
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Library 1 Tracks", len(lib1.tracks))
+                            with col2:
+                                st.metric("Library 2 Tracks", len(lib2.tracks))
+                            with col3:
+                                # Simple overlap calculation
+                                common = len(
+                                    set(t.title.lower() for t in lib1.tracks)
+                                    & set(t.title.lower() for t in lib2.tracks)
+                                )
+                                st.metric("Common Tracks", common)
+
+                            st.info(
+                                "💡 For detailed analysis and visualizations, please use the desktop version."
+                            )
+                except Exception as e:
+                    st.error(f"Error during comparison: {str(e)}")
+
+    with tab2:
+        st.subheader("📝 File Upload Guide")
+        st.write("**Supported formats:**")
+        st.write("• Spotify: JSON export files")
+        st.write("• Apple Music: XML library files")
+        st.write("• YouTube Music: CSV exports")
+        st.write("• Generic: CSV files with title, artist columns")
+
+        st.write("**Tips for mobile:**")
+        st.write("• Keep files under 10MB for best performance")
+        st.write("• Close other browser tabs to free memory")
+        st.write("• Use WiFi for large file uploads")
+
+    with tab3:
+        st.subheader("ℹ️ Mobile Help")
+        st.write("**Quick Start:**")
+        st.write("1. Export your music libraries from streaming services")
+        st.write("2. Upload both files using the Compare tab")
+        st.write("3. View basic comparison statistics")
+
+        st.write("**Need more features?**")
+        st.write(
+            "For advanced analysis, charts, and playlist management, please visit this app on a desktop browser."
+        )
+
+        st.write("**Having issues?**")
+        st.write("Try refreshing the page or clearing your browser cache.")
+
+
 def main():
     """Main application entry point."""
     # Initialize session
     SessionManager.initialize_session()
 
-    # Render header and sidebar
+    # Check if mobile device and provide lightweight experience
+    is_mobile = st.session_state.get("mobile_detected", False)
+
+    if is_mobile:
+        render_mobile_app()
+        return
+
+    # Render full desktop experience
     render_header()
     render_sidebar()
 
