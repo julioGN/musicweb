@@ -30,6 +30,7 @@ try:
 except NameError:
     # __file__ not defined when exec'd directly, try to find src dir
     import os
+
     current_dir = Path(os.getcwd())
     src_candidates = [current_dir / "src", current_dir.parent / "src"]
     for src_dir in src_candidates:
@@ -88,16 +89,24 @@ except Exception:
     YTMusicCleaner = None
 from musicweb.web.playlist_audit import audit_playlist, parse_playlist_bytes
 
-# Try to import optional visualization dependencies
-try:
-    import matplotlib.pyplot as plt
-    import plotly.express as px
-    import plotly.graph_objects as go
-    from matplotlib_venn import venn2, venn3
+# Defer heavy imports for better mobile loading
+HAVE_VISUALIZATION = True  # Assume we have it, import on demand
 
-    HAVE_VISUALIZATION = True
-except ImportError:
-    HAVE_VISUALIZATION = False
+
+def get_visualization_modules():
+    """Lazy load visualization modules when needed."""
+    try:
+        import matplotlib.pyplot as plt
+        import plotly.express as px
+        import plotly.graph_objects as go
+        from matplotlib_venn import venn2, venn3
+
+        return plt, px, go, venn2, venn3
+    except ImportError:
+        global HAVE_VISUALIZATION
+        HAVE_VISUALIZATION = False
+        return None, None, None, None, None
+
 
 import base64
 
@@ -142,6 +151,38 @@ st.set_page_config(
         """,
     },
 )
+
+# Mobile loading optimization
+if "mobile_loaded" not in st.session_state:
+    # Show loading indicator for mobile
+    loading_placeholder = st.empty()
+    with loading_placeholder.container():
+        st.markdown(
+            """
+        <div style="text-align: center; padding: 50px;">
+            <h3>🎵 Loading a mega music comparator...</h3>
+            <div style="margin: 20px;">
+                <div style="display: inline-block; animation: spin 2s linear infinite;">⏳</div>
+            </div>
+            <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            </style>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    # Initialize session state
+    st.session_state.mobile_loaded = True
+
+    # Clear loading indicator after a brief moment
+    import time
+
+    time.sleep(0.1)
+    loading_placeholder.empty()
 
 # Inject mobile-responsive CSS
 mobile_css = """
@@ -1044,6 +1085,10 @@ def render_overview_tab():
 
         with col1:
             # Track counts
+            plt, px, go, venn2, venn3 = get_visualization_modules()
+            if px is None:
+                st.error("Visualization libraries not available")
+                return
             fig = px.bar(
                 df,
                 x="Library",
@@ -1414,6 +1459,11 @@ def render_comparison_charts(result, stats):
 
     with col1:
         # Match type distribution
+        plt, px, go, venn2, venn3 = get_visualization_modules()
+        if px is None:
+            st.error("Visualization libraries not available")
+            return
+
         match_data = {
             "Exact": stats["exact_matches"],
             "Fuzzy": stats["fuzzy_matches"],
