@@ -96,7 +96,7 @@ def get_logo_base64():
 
 # Page configuration
 st.set_page_config(
-    page_title="Mega Music Comparator",
+    page_title="a mega music comparator",
     page_icon="🕸️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -414,10 +414,10 @@ def render_header():
             """
         <div style="text-align: center; padding: 2rem 0; position: relative;" class="musical-notes">
             <div class="logo-container" style="margin-bottom: 1rem;">
-                <img src="data:image/png;base64,{logo_base64}" style="width: 150px; height: 150px; margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); transition: transform 0.3s ease;" alt="Mega Music Comparator Logo"/>
+                <img src="data:image/png;base64,{logo_base64}" style="width: 150px; height: 150px; margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); transition: transform 0.3s ease;" alt="a mega music comparator Logo"/>
             </div>
             <p style="font-size: 1.4rem; color: #2c3e50; margin: 0; font-weight: 600; letter-spacing: 0.5px;">
-                Mega Music Comparator
+                a mega music comparator
             </p>
             <div style="width: 120px; height: 3px; background: linear-gradient(45deg, #667eea, #764ba2); margin: 1rem auto; border-radius: 2px;"></div>
         </div>
@@ -435,7 +435,7 @@ def render_sidebar():
         st.sidebar.markdown(
             f"""
         <div style="text-align: center; padding: 0.5rem 0;">
-            <img src="data:image/png;base64,{get_logo_base64()}" style="width: 50px; height: 50px; opacity: 0.9;" alt="Mega Music Comparator"/>
+            <img src="data:image/png;base64,{get_logo_base64()}" style="width: 50px; height: 50px; opacity: 0.9;" alt="a mega music comparator"/>
         </div>
         """,
             unsafe_allow_html=True,
