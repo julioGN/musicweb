@@ -17,36 +17,21 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import streamlit as st
 
-# Handle imports for both development and deployment environments
-try:
-    from musicweb.core.comparison import LibraryComparator
-    from musicweb.core.models import Library, Track
-    from musicweb.platforms import create_parser
-    from musicweb.platforms.detection import detect_platform
-except ImportError:
-    # Fallback for deployment environments where package isn't installed
-    import sys
-    from pathlib import Path
+# Handle imports for deployment environments
+import sys
+from pathlib import Path
 
-    # Add the src directory to Python path
-    src_path = Path(__file__).parent.parent.parent
-    if src_path.name == "src":
-        sys.path.insert(0, str(src_path))
-    else:
-        # Try to find src directory
-        current = Path(__file__).parent
-        while current.parent != current:
-            src_candidate = current / "src"
-            if src_candidate.exists():
-                sys.path.insert(0, str(src_candidate))
-                break
-            current = current.parent
+# Add src directory to path for Streamlit Cloud deployment
+current_file = Path(__file__).resolve()
+src_dir = current_file.parent.parent.parent
+if src_dir.name == "src" or (src_dir / "musicweb").exists():
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
 
-    # Now try the imports again
-    from musicweb.core.comparison import LibraryComparator
-    from musicweb.core.models import Library, Track
-    from musicweb.platforms import create_parser
-    from musicweb.platforms.detection import detect_platform
+from musicweb.core.comparison import LibraryComparator
+from musicweb.core.models import Library, Track
+from musicweb.platforms import create_parser
+from musicweb.platforms.detection import detect_platform
 
 try:
     from musicweb.integrations.playlist import PlaylistManager
