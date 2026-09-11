@@ -77,6 +77,27 @@ make install-dev  # or pip install -e ".[dev]"
 make serve        # or streamlit run src/musicweb/web/app.py
 ```
 
+### Run and debug locally in VS Code
+
+Install the Microsoft **Python** and **Python Debugger** extensions. Create an
+environment using Python 3.11 or 3.12 (the project currently requires NumPy <2):
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+```
+
+Use **Python: Select Interpreter** from the Command Palette to select `.venv`.
+The launch configuration uses the workspace's `.venv` interpreter explicitly.
+If you see `No module named streamlit`, install the project into that environment
+with `.venv/bin/python -m pip install -e ".[dev]"` (Windows:
+`.venv\Scripts\python.exe -m pip install -e ".[dev]"`).
+In **Run and Debug**, select **MusicWeb: Local app**, then press **F5** to debug
+with breakpoints, or choose **Run > Run Without Debugging** to run normally.
+The app opens at <http://127.0.0.1:8501>. Stop it using the debug toolbar, or
+press **Ctrl+C** in its terminal when running without debugging.
+
 ### 🌐 Web Interface
 
 1. **Upload your music library files** (Spotify CSV, Apple Music CSV, or YouTube Music JSON)

@@ -167,19 +167,30 @@ st.set_page_config(
 dark_mode_js = """
 <script>
 function detectTheme() {
+    // Respect user preference if set
+    const pref = (localStorage.getItem('themePreference') || 'auto').toLowerCase();
+    
     // Detect system dark mode preference
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     // Check for Streamlit's dark theme
     const streamlitDark = document.querySelector('[data-theme="dark"]') !== null;
     
-    // Store dark mode state
-    const isDarkMode = prefersDark || streamlitDark;
+    // Determine effective theme
+    let isDarkMode;
+    if (pref === 'dark') {
+        isDarkMode = true;
+    } else if (pref === 'light') {
+        isDarkMode = false;
+    } else {
+        isDarkMode = prefersDark || streamlitDark;
+    }
     sessionStorage.setItem('dark_mode', isDarkMode.toString());
     
     // Apply theme-specific CSS classes
     document.body.classList.toggle('dark-theme', isDarkMode);
     document.body.classList.toggle('light-theme', !isDarkMode);
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
     
     // Update CSS custom properties for dynamic theming
     if (isDarkMode) {
@@ -226,6 +237,13 @@ responsive_css = """
     --text-secondary: #6c757d;
     --accent-color: #007bff;
     --border-color: #dee2e6;
+    /* Design tokens */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.18);
+    --shadow-lg: 0 10px 24px rgba(0,0,0,0.2);
 }
 
 /* Dark theme custom properties (updated by JavaScript) */
@@ -263,15 +281,17 @@ responsive_css = """
 
 /* Logo adaptive styling */
 .logo-adaptive {
-    transition: filter 0.3s ease;
+    transition: filter 0.3s ease, transform 0.2s ease;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
 }
 
 .dark-theme .logo-adaptive {
-    filter: invert(1) hue-rotate(180deg) brightness(1.2);
+    filter: invert(1) hue-rotate(180deg) brightness(1.2)
+            drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25));
 }
 
 .light-theme .logo-adaptive {
-    filter: none;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
 }
 
 /* Enhanced dark mode UI components */
@@ -337,7 +357,7 @@ responsive_css = """
     background: linear-gradient(135deg, var(--accent-color) 0%, #0056b3 100%);
     border: none;
     color: white;
-    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+    box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
 }
 
@@ -357,7 +377,7 @@ responsive_css = """
     }
 }
 
-/* Small screen styles (320px+) */
+/* Small screen styles (phones, 320px–767px) */
 @media screen and (max-width: 767px) {
     
     /* Main container adjustments */
@@ -455,6 +475,33 @@ responsive_css = """
     /* Charts small screens */
     .js-plotly-plot {
         margin: 0.5rem 0 !important;
+    }
+}
+
+/* Tablet styles (768px–1024px) */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+    .main .block-container {
+        padding: 1.25rem 1rem !important;
+        max-width: 95% !important;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px !important;
+        padding: 0 0.5rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 16px !important;
+        font-size: 0.95rem !important;
+        min-width: auto !important;
+        border-radius: var(--radius-sm);
+    }
+    .stButton > button {
+        padding: 0.75rem 1.25rem !important;
+        font-size: 0.95rem !important;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+    }
+    .stDataFrame {
+        font-size: 0.95rem !important;
     }
 }
 
@@ -646,15 +693,13 @@ st.markdown(
 /* Section headers */
 h1, h2, h3 {
     margin-bottom: 1rem;
-    color: #2c3e50;
+    color: var(--text-primary);
 }
 h1 {
     border-bottom: 3px solid #007bff;
     padding-bottom: 0.5rem;
 }
-h2 {
-    color: #34495e;
-}
+h2 { color: var(--text-primary); }
 
 /* Sidebar styling */
 .css-1d391kg {
@@ -862,11 +907,10 @@ def render_header():
                 <img src="data:image/png;base64,{logo_base64}" 
                      class="logo-adaptive"
                      style="width: clamp(60px, 15vw, 150px); height: clamp(60px, 15vw, 150px); 
-                            margin-bottom: 1rem; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15)); 
-                            transition: transform 0.3s ease, filter 0.3s ease;" 
+                            margin-bottom: 1rem; transition: transform 0.3s ease, filter 0.3s ease;" 
                      alt="a mega music comparator Logo"/>
             </div>
-            <h1 class="main-heading" style="font-size: clamp(1.1rem, 4vw, 1.4rem); color: #2c3e50; 
+            <h1 class="main-heading" style="font-size: clamp(1.1rem, 4vw, 1.4rem); color: var(--text-primary); 
                                            margin: 0; font-weight: 600; letter-spacing: 0.5px;">
                 a mega music comparator
             </h1>
@@ -897,6 +941,33 @@ def render_sidebar():
         """,
             unsafe_allow_html=True,
         )
+
+    # Appearance controls
+    if "theme_preference" not in st.session_state:
+        st.session_state.theme_preference = "Auto (System)"
+
+    st.sidebar.subheader("🎨 Appearance")
+    theme_choice = st.sidebar.selectbox(
+        "Theme",
+        options=["Auto (System)", "Light", "Dark"],
+        index=["Auto (System)", "Light", "Dark"].index(st.session_state.theme_preference),
+        help="Override system theme for this app",
+    )
+    st.session_state.theme_preference = theme_choice
+
+    # Persist preference in localStorage and apply immediately
+    _pref_map = {"Auto (System)": "auto", "Light": "light", "Dark": "dark"}
+    st.markdown(
+        f"""
+        <script>
+        try {{
+            localStorage.setItem('themePreference', '{_pref_map[theme_choice]}');
+            if (typeof detectTheme === 'function') detectTheme();
+        }} catch (e) {{ /* ignore */ }}
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.sidebar.header("▶ Library Management")
 

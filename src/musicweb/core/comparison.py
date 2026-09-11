@@ -246,8 +246,8 @@ class LibraryComparator:
         target_by_base = {}
 
         for track in target_music:
-            if track.isrc:
-                target_by_isrc[track.isrc.lower()] = track
+            if track.isrc and track.isrc.strip():
+                target_by_isrc[track.isrc.strip().lower()] = track
 
             key = (track.normalized_title, track.normalized_artist)
             if key not in target_by_normalized:
@@ -309,7 +309,7 @@ class LibraryComparator:
 
         # 1. Try ISRC exact match first
         if source_track.isrc:
-            isrc_match = target_by_isrc.get(source_track.isrc.lower())
+            isrc_match = target_by_isrc.get(source_track.isrc.strip().lower())
             if isrc_match:
                 return MatchResult(
                     source_track=source_track,
@@ -320,7 +320,11 @@ class LibraryComparator:
 
         # 2. Try exact normalized match
         exact_key = (source_track.normalized_title, source_track.normalized_artist)
-        exact_candidates = target_by_normalized.get(exact_key, [])
+        exact_candidates = [
+            candidate
+            for candidate in target_by_normalized.get(exact_key, [])
+            if self.matcher.calculate_match_confidence(source_track, candidate) > 0
+        ]
 
         if exact_candidates:
             # If multiple exact matches, pick the best one based on other factors
@@ -391,6 +395,8 @@ class LibraryComparator:
             return ""
         # Remove common version keywords
         patterns = [
+            r"\b\d{2,4}\s+remaster(?:ed)?\b",
+            r"\bremaster(?:ed)?\s+\d{2,4}\b",
             r"\bremaster(?:ed)?\b",
             r"\bremix\b",
             r"\bversion\b",
@@ -406,7 +412,6 @@ class LibraryComparator:
             r"\bstereo\b",
             r"\bexplicit\b",
             r"\bclean\b",
-            r"\b\d{2,4}\s+remaster(?:ed)?\b",
         ]
         import re
 

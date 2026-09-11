@@ -5,6 +5,7 @@ Core data structures and matching algorithms for music library management.
 import hashlib
 import math
 import re
+import unicodedata
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -141,20 +142,8 @@ class TrackNormalizer:
         r"\s*\(\s*[Ff]t\.?\s+.*?\)",
         r"\s*\(\s*[Ww]ith\s+.*?\)",
         r"\s*\(\s*&\s+.*?\)",
-        r"\s*[Ff]eat\.?\s+.*",
-        r"\s*[Ff]t\.?\s+.*",
-    ]
-
-    # Version/remix indicators to preserve
-    VERSION_PATTERNS = [
-        r"\([^)]*[Rr]emix[^)]*\)",
-        r"\([^)]*[Vv]ersion[^)]*\)",
-        r"\([^)]*[Rr]emaster[^)]*\)",
-        r"\([^)]*[Ll]ive[^)]*\)",
-        r"\([^)]*[Aa]coustic[^)]*\)",
-        r"\([^)]*[Ii]nstrumental[^)]*\)",
-        r"\([^)]*[Dd]eluxe[^)]*\)",
-        r"\([^)]*[Ee]xtended[^)]*\)",
+        r"\s*\b(?:feat\.?|featuring)\s+.*",
+        r"\s*\bft\.?\s+.*",
     ]
 
     @staticmethod
@@ -169,20 +158,14 @@ class TrackNormalizer:
         # Remove extra whitespace
         normalized = re.sub(r"\s+", " ", normalized)
 
-        # Preserve version info but remove other parentheses
-        versions = []
-        for pattern in TrackNormalizer.VERSION_PATTERNS:
-            matches = re.findall(pattern, normalized, re.IGNORECASE)
-            versions.extend(matches)
-            normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
-
-        # Remove other parentheses content
-        normalized = re.sub(r"\([^)]*\)", "", normalized)
-        normalized = re.sub(r"\[[^\]]*\]", "", normalized)
-
-        # Add back version info
-        if versions:
-            normalized += " " + " ".join(versions)
+        # Remove known credits/presentation labels only. Other annotations can
+        # identify a different recording or part of a composition.
+        normalized = re.sub(
+            r"[\[(]\s*(?:(?:feat\.?|ft\.?|featuring|with)\s+[^)\]]*"
+            r"|official\s+(?:music\s+)?(?:video|audio)|lyrics?)\s*[\])]",
+            " ",
+            normalized,
+        )
 
         # Remove common prefixes/suffixes
         normalized = re.sub(r"^(the\s+)", "", normalized)
@@ -200,7 +183,11 @@ class TrackNormalizer:
         if not artist:
             return ""
 
-        normalized = artist.strip().lower()
+        normalized = "".join(
+            char
+            for char in unicodedata.normalize("NFKD", artist.casefold())
+            if not unicodedata.combining(char)
+        ).strip()
 
         # Remove featuring artists
         for pattern in TrackNormalizer.FEATURING_PATTERNS:
@@ -211,6 +198,8 @@ class TrackNormalizer:
             r"\s+(jr\.?|sr\.?|iii?|iv)$", "", normalized, flags=re.IGNORECASE
         )
 
+        normalized = re.sub(r"\band\b", " ", normalized)
+        normalized = re.sub(r"[^\w\s]", " ", normalized)
         # Remove extra whitespace
         normalized = re.sub(r"\s+", " ", normalized).strip()
 
@@ -222,11 +211,14 @@ class TrackNormalizer:
         if not artist:
             return set()
 
-        # Normalize first
-        normalized = TrackNormalizer.normalize_artist(artist)
+        # Split credits before normalizing punctuation, so collaborators remain
+        # separate artist tokens.
+        normalized = artist.casefold()
+        for pattern in TrackNormalizer.FEATURING_PATTERNS:
+            normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
 
         # Split on common separators
-        separators = [",", "&", " and ", " with ", " feat ", " ft ", " featuring "]
+        separators = [",", ";", "&", " and ", " with "]
         tokens = [normalized]
 
         for sep in separators:
@@ -238,13 +230,40 @@ class TrackNormalizer:
         # Clean each token
         clean_tokens = set()
         for token in tokens:
-            token = token.strip()
-            if token and len(token) > 1:
+            token = TrackNormalizer.normalize_artist(token)
+            if token:
                 # Remove common words
                 if token not in {"various artists", "ost", "soundtrack", "va"}:
                     clean_tokens.add(token)
 
         return clean_tokens
+
+    @staticmethod
+    def recording_signature(title: str) -> Set[str]:
+        """Identify recording differences in annotations, not ordinary title words."""
+        annotations = re.findall(
+            r"\(([^)]*)\)|\[([^\]]*)\]|\s[-–—]\s(.+)$", title.lower()
+        )
+        labels = " ".join(
+            part
+            for group in annotations
+            for part in group
+            if part and not re.match(r"\s*(?:feat\.?|ft\.?|featuring|with)\s", part)
+        )
+        markers = set(
+            re.findall(
+                r"\b(?:live|remix|acoustic|instrumental|demo|radio edit|extended|"
+                r"karaoke|mono|stereo|sped up|slowed)\b",
+                labels,
+            )
+        )
+        # Parts can also be written without brackets (e.g. Song, Pt. 2).
+        numbers = {"one": "1", "two": "2", "three": "3", "four": "4"}
+        for part in re.findall(
+            r"\b(?:part|pt)\.?\s+(\d+|one|two|three|four)\b", title.lower()
+        ):
+            markers.add("part:" + numbers.get(part, part))
+        return markers
 
     @staticmethod
     def parse_duration(duration_str: str) -> Optional[int]:
@@ -284,20 +303,17 @@ class ContentFilter:
 
     NON_MUSIC_PATTERNS = [
         # Podcasts and interviews
-        r"\b(podcast|interview|talk|discussion)\b",
+        r"\b(podcast|interview|discussion)\b",
         r"\b(episode|ep\.|chapter)\s*\d+",
         # YouTube specific content
         r"\b(youtube\s+shorts?|shorts?)\b",
         r"\b(vlog|tutorial|review|reaction)\b",
         r"\b(behind\s+the\s+scenes|making\s+of)\b",
         # Non-music audio
-        r"\b(audiobook|meditation|sleep|rain|nature)\b",
+        r"\b(audiobook|guided\s+meditation|sleep\s+sounds|rain\s+sounds|nature\s+sounds)\b",
         r"\b(comedy|stand\-?up|funny)\b",
-        # Live/performance indicators (often lower quality)
-        r"\b(live\s+from|recorded\s+live)\b",
-        r"\b(concert\s+recording|bootleg)\b",
         # Inappropriate content
-        r"\b(explicit|nsfw|adult)\b",
+        r"\b(nsfw)\b",
     ]
 
     @staticmethod
@@ -357,6 +373,7 @@ class TrackMatcher:
         self._artist_word_index: Dict[str, List[Track]] = defaultdict(list)
         self._title_word_index: Dict[str, List[Track]] = defaultdict(list)
         self._indexed_candidates: Set[int] = set()
+        self._candidate_signature: Tuple = ()
 
         # Memoization cache for expensive similarity calculations
         self._similarity_cache: Dict[Tuple[str, str], float] = {}
@@ -388,8 +405,10 @@ class TrackMatcher:
             # Simple fallback similarity
             similarity = 1.0 if str1_norm == str2_norm else 0.0
 
-        # Cache the result
-        self._similarity_cache[cache_key] = similarity
+        # Full candidate searches can encounter many distinct artist pairs.
+        # Bound memoization without changing the scores once the cache is full.
+        if len(self._similarity_cache) < 10000:
+            self._similarity_cache[cache_key] = similarity
         return similarity
 
     def _create_exact_hash(self, track: Track) -> str:
@@ -426,7 +445,7 @@ class TrackMatcher:
                 self._exact_hash_index[exact_hash].append(track)
 
             # ISRC index for instant ISRC matches
-            if track.isrc:
+            if track.isrc and track.isrc.strip():
                 isrc_key = track.isrc.strip().upper()
                 if isrc_key not in self._isrc_index:  # Avoid duplicates
                     self._isrc_index[isrc_key] = track
@@ -448,19 +467,15 @@ class TrackMatcher:
         self, target_track: Track, all_candidates: List[Track]
     ) -> List[Track]:
         """Get a filtered subset of candidates for performance optimization."""
-        # 1. Try exact hash match first
-        exact_hash = self._create_exact_hash(target_track)
-        if exact_hash and exact_hash in self._exact_hash_index:
-            return self._exact_hash_index[exact_hash]
-
-        # 2. Try ISRC match
+        # ISRC identity takes precedence over metadata similarity.
         if target_track.isrc:
             isrc_key = target_track.isrc.strip().upper()
             if isrc_key in self._isrc_index:
                 return [self._isrc_index[isrc_key]]
 
         # 3. Get candidates based on word overlap
-        potential_matches = set()
+        exact_hash = self._create_exact_hash(target_track)
+        potential_matches = set(self._exact_hash_index.get(exact_hash, []))
 
         # Check title words
         if target_track.normalized_title:
@@ -476,17 +491,11 @@ class TrackMatcher:
                 if len(word) > 2 and word in self._artist_word_index:
                     potential_matches.update(self._artist_word_index[word])
 
-        # Return filtered candidates or limited fallback
-        if potential_matches:
-            filtered = [track for track in all_candidates if track in potential_matches]
-            return (
-                filtered
-                if filtered
-                else all_candidates[: min(100, len(all_candidates))]
-            )
-
-        # If no word matches, limit search for performance
-        return all_candidates[: min(50, len(all_candidates))]
+        # Word overlap orders the search; it must not exclude candidates whose
+        # short names or spelling differences are still valid fuzzy matches.
+        return [t for t in all_candidates if t in potential_matches] + [
+            t for t in all_candidates if t not in potential_matches
+        ]
 
     def calculate_match_confidence(self, track1: Track, track2: Track) -> float:
         """Calculate overall match confidence between two tracks."""
@@ -495,9 +504,15 @@ class TrackMatcher:
         if (
             track1.isrc
             and track2.isrc
+            and track1.isrc.strip()
             and track1.isrc.strip().lower() == track2.isrc.strip().lower()
         ):
             return 1.0
+
+        if TrackNormalizer.recording_signature(
+            track1.title
+        ) != TrackNormalizer.recording_signature(track2.title):
+            return 0.0
 
         scores = {}
 
@@ -510,6 +525,9 @@ class TrackMatcher:
         # Artist similarity (35% weight)
         artist_score = self._calculate_artist_similarity(track1, track2)
         scores["artist"] = (artist_score, 0.35)
+
+        if title_score < 0.6 or artist_score < 0.5:
+            return 0.0
 
         # Album similarity (10% weight)
         if self.enable_album and track1.album and track2.album:
@@ -592,6 +610,13 @@ class TrackMatcher:
         # Combined score
         combined_score = jaccard + containment
         # Do not hard-zero; return graded similarity but note threshold later
+        string_score = self._cached_string_similarity(
+            track1.normalized_artist, track2.normalized_artist
+        )
+        # Allow small spelling differences, while avoiding weak artist matches
+        # being rescued by identical titles and durations.
+        if string_score >= 0.9:
+            combined_score = max(combined_score, string_score)
         return min(1.0, combined_score)
 
     def _calculate_album_similarity(self, album1: str, album2: str) -> float:
@@ -634,8 +659,13 @@ class TrackMatcher:
             return None
 
         # Build indices if not already done or if candidates changed
-        if not self._indexed_candidates:
+        signature = tuple(
+            (id(t), t.normalized_title, t.normalized_artist, t.isrc, t.is_music)
+            for t in candidate_tracks
+        )
+        if signature != self._candidate_signature:
             self._build_optimization_indices(candidate_tracks)
+            self._candidate_signature = signature
 
         # Get optimized subset of candidates
         candidates_to_check = self._get_candidate_subset(target_track, candidate_tracks)
@@ -654,7 +684,7 @@ class TrackMatcher:
                 best_confidence = confidence
 
                 # Early termination for high confidence matches
-                if confidence >= 0.98:
+                if confidence >= 1.0:
                     break
 
         # Require a minimum confidence that varies with strictness

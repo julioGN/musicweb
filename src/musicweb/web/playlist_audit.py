@@ -183,32 +183,7 @@ def _build_indices(tracks: List[Track]):
 
 
 def _strip_version_tokens(title: str) -> str:
-    import re
-
-    if not title:
-        return ""
-    patterns = [
-        r"\bremaster(?:ed)?\b",
-        r"\bremix\b",
-        r"\bversion\b",
-        r"\blive\b",
-        r"\bacoustic\b",
-        r"\binstrumental\b",
-        r"\bdeluxe\b",
-        r"\bextended\b",
-        r"\bedit\b",
-        r"\bradio\s+edit\b",
-        r"\bdemo\b",
-        r"\bmono\b",
-        r"\bstereo\b",
-        r"\bexplicit\b",
-        r"\bclean\b",
-        r"\b\d{2,4}\s+remaster(?:ed)?\b",
-    ]
-    cleaned = title
-    for p in patterns:
-        cleaned = re.sub(p, " ", cleaned, flags=re.IGNORECASE)
-    return re.sub(r"\s+", " ", cleaned).strip()
+    return LibraryComparator._strip_version_tokens(title)
 
 
 def _match_item(
@@ -231,8 +206,9 @@ def _match_item(
     # 1) Exact normalized
     key = (source.normalized_title, source.normalized_artist)
     candidates = exact_idx.get(key, [])
-    if candidates:
-        return "present", candidates[0], 0.98
+    for candidate in candidates:
+        if matcher.calculate_match_confidence(source, candidate) > 0:
+            return "present", candidate, 0.98
 
     # 2) Base-title exact
     base_title = _strip_version_tokens(source.normalized_title)
@@ -249,20 +225,11 @@ def _match_item(
         if best and best_score >= review_threshold:
             return "review", best, best_score
 
-    # 3) Fuzzy across all (prefilter by artist token overlap)
-    src_tokens = source.artist_tokens or set()
-    cands = []
-    if src_tokens:
-        for t in lib_tracks:
-            if not t.is_music or not t.artist_tokens:
-                continue
-            if src_tokens.intersection(t.artist_tokens):
-                cands.append(t)
-    else:
-        cands = lib_tracks
-
+    # Artist tokens are not a safe exclusion filter for spelling variants.
     best, best_score = None, 0.0
-    for c in cands:
+    for c in lib_tracks:
+        if not c.is_music:
+            continue
         score = matcher.calculate_match_confidence(source, c)
         if score > best_score:
             best, best_score = c, score
