@@ -12,13 +12,13 @@ class WebConfig:
     """Configuration settings for the web application."""
 
     # App settings
-    app_title: str = "🎵 MusicWeb - Professional Music Library Management"
+    app_title: str = "MusicWeb / Library workspace"
     app_description: str = (
         "Compare, analyze, and manage music libraries across platforms"
     )
 
     # UI settings
-    page_icon: str = "🎵"
+    page_icon: str = "🕸️"
     layout: str = "wide"
     initial_sidebar_state: str = "expanded"
 

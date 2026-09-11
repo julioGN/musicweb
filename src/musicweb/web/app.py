@@ -44,14 +44,7 @@ from musicweb.core.models import Library, Track
 from musicweb.platforms import create_parser
 from musicweb.platforms.detection import detect_platform
 
-# Import responsive design utilities
-try:
-    from musicweb.web.components.responsive import ResponsiveDesign
-except ImportError:
-    # Fallback if responsive module not available
-    class ResponsiveDesign:
-        pass
-
+from musicweb.web.theme import apply_theme, render_chart, render_empty_state
 
 try:
     from musicweb.integrations.playlist import PlaylistManager
@@ -138,694 +131,14 @@ def get_logo_base64(dark_mode=False):
             return "", ""
 
 
-def detect_dark_mode():
-    """Detect if user is using dark mode via JavaScript."""
-    return st.session_state.get("dark_mode_detected", False)
-
-
-# Page configuration - Responsive design
 st.set_page_config(
-    page_title="a mega music comparator",
+    page_title="MusicWeb / Library workspace",
     page_icon="🕸️",
     layout="wide",
-    initial_sidebar_state="auto",  # Auto-collapse on small screens
+    initial_sidebar_state="auto",
     menu_items={
-        "Get Help": None,
-        "Report a bug": None,
-        "About": """
-        # a mega music comparator
-        A responsive tool for comparing music libraries across platforms.
-        """,
+        "About": "MusicWeb — compare and manage music libraries across platforms."
     },
-)
-
-
-# Initialize app - no loading screen for faster mobile performance
-
-
-# Dark mode detection JavaScript
-dark_mode_js = """
-<script>
-function detectTheme() {
-    // Respect user preference if set
-    const pref = (localStorage.getItem('themePreference') || 'auto').toLowerCase();
-    
-    // Detect system dark mode preference
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    // Check for Streamlit's dark theme
-    const streamlitDark = document.querySelector('[data-theme="dark"]') !== null;
-    
-    // Determine effective theme
-    let isDarkMode;
-    if (pref === 'dark') {
-        isDarkMode = true;
-    } else if (pref === 'light') {
-        isDarkMode = false;
-    } else {
-        isDarkMode = prefersDark || streamlitDark;
-    }
-    sessionStorage.setItem('dark_mode', isDarkMode.toString());
-    
-    // Apply theme-specific CSS classes
-    document.body.classList.toggle('dark-theme', isDarkMode);
-    document.body.classList.toggle('light-theme', !isDarkMode);
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-    
-    // Update CSS custom properties for dynamic theming
-    if (isDarkMode) {
-        document.documentElement.style.setProperty('--bg-primary', '#0e1117');
-        document.documentElement.style.setProperty('--bg-secondary', '#262730');
-        document.documentElement.style.setProperty('--text-primary', '#fafafa');
-        document.documentElement.style.setProperty('--text-secondary', '#a6a6a6');
-        document.documentElement.style.setProperty('--accent-color', '#ff6b6b');
-        document.documentElement.style.setProperty('--border-color', '#333');
-    } else {
-        document.documentElement.style.setProperty('--bg-primary', '#ffffff');
-        document.documentElement.style.setProperty('--bg-secondary', '#f0f2f6');
-        document.documentElement.style.setProperty('--text-primary', '#262730');
-        document.documentElement.style.setProperty('--text-secondary', '#6c757d');
-        document.documentElement.style.setProperty('--accent-color', '#007bff');
-        document.documentElement.style.setProperty('--border-color', '#dee2e6');
-    }
-}
-
-// Run detection on load and when theme changes
-detectTheme();
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', detectTheme);
-
-// Also watch for Streamlit theme changes
-const observer = new MutationObserver(detectTheme);
-observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-</script>
-"""
-
-# Inject dark mode detection
-st.markdown(dark_mode_js, unsafe_allow_html=True)
-
-# Update session state based on detection
-if "dark_mode_detected" not in st.session_state:
-    st.session_state.dark_mode_detected = False
-
-# Enhanced responsive CSS with dark mode support
-responsive_css = """
-/* Responsive Design with Dark Mode Support for MusicWeb */
-:root {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f0f2f6;
-    --text-primary: #262730;
-    --text-secondary: #6c757d;
-    --accent-color: #007bff;
-    --border-color: #dee2e6;
-    /* Design tokens */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.18);
-    --shadow-lg: 0 10px 24px rgba(0,0,0,0.2);
-}
-
-/* Dark theme custom properties (updated by JavaScript) */
-.dark-theme {
-    --bg-primary: #0e1117;
-    --bg-secondary: #262730;
-    --text-primary: #fafafa;
-    --text-secondary: #a6a6a6;
-    --accent-color: #ff6b6b;
-    --border-color: #333;
-}
-
-/* Enhanced dark mode styles */
-.dark-theme .stApp {
-    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
-    color: var(--text-primary);
-}
-
-.dark-theme .stSelectbox > div > div {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-}
-
-.dark-theme .stFileUploader section {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-}
-
-.dark-theme .stButton > button {
-    background: linear-gradient(135deg, var(--accent-color) 0%, #45a049 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-/* Logo adaptive styling */
-.logo-adaptive {
-    transition: filter 0.3s ease, transform 0.2s ease;
-    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
-}
-
-.dark-theme .logo-adaptive {
-    filter: invert(1) hue-rotate(180deg) brightness(1.2)
-            drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25));
-}
-
-.light-theme .logo-adaptive {
-    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
-}
-
-/* Enhanced dark mode UI components */
-.dark-theme .stTab {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-}
-
-.dark-theme .stTabs [data-baseweb="tab-list"] {
-    background-color: var(--bg-secondary);
-}
-
-.dark-theme .stTabs [data-baseweb="tab"] {
-    background-color: var(--bg-secondary);
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-}
-
-.dark-theme .stTabs [aria-selected="true"] {
-    background-color: var(--accent-color) !important;
-    color: white !important;
-}
-
-.dark-theme .stMetric {
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1rem;
-}
-
-.dark-theme .stAlert {
-    background-color: rgba(255, 107, 107, 0.1);
-    border-left: 4px solid var(--accent-color);
-    color: var(--text-primary);
-}
-
-.dark-theme .stSuccess {
-    background-color: rgba(72, 187, 120, 0.1);
-    border-left: 4px solid #48bb78;
-}
-
-.dark-theme .stInfo {
-    background-color: rgba(66, 153, 225, 0.1);
-    border-left: 4px solid #4299e1;
-}
-
-.dark-theme .stWarning {
-    background-color: rgba(237, 137, 54, 0.1);
-    border-left: 4px solid #ed8936;
-}
-
-.dark-theme .stError {
-    background-color: rgba(245, 101, 101, 0.1);
-    border-left: 4px solid #f56565;
-}
-
-/* Enhanced light theme styling */
-.light-theme .stApp {
-    background: linear-gradient(135deg, #fafafa 0%, #f0f2f6 100%);
-}
-
-.light-theme .stButton > button {
-    background: linear-gradient(135deg, var(--accent-color) 0%, #0056b3 100%);
-    border: none;
-    color: white;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.3s ease;
-}
-
-.light-theme .stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
-}
-
-/* Responsive improvements */
-@media (prefers-color-scheme: dark) {
-    .main-heading {
-        color: var(--text-primary) !important;
-    }
-    
-    .stApp > header {
-        background-color: transparent;
-    }
-}
-
-/* Small screen styles (phones, 320px–767px) */
-@media screen and (max-width: 767px) {
-    
-    /* Main container adjustments */
-    .main .block-container {
-        padding: 1rem 0.5rem !important;
-        max-width: 100% !important;
-    }
-    
-    /* Sidebar small screen optimization */
-    .css-1d391kg {
-        width: 100% !important;
-        min-width: 100% !important;
-    }
-    
-    /* Logo adjustments for small screens */
-    .logo-container img {
-        width: 80px !important;
-        height: 80px !important;
-        margin-bottom: 0.5rem !important;
-    }
-    
-    /* Main heading small screens */
-    .main-heading {
-        font-size: 1.2rem !important;
-        text-align: center;
-        margin: 0.5rem 0 !important;
-        line-height: 1.3;
-    }
-    
-    /* Tab navigation small screens */
-    .stTabs [data-baseweb="tab-list"] {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 4px !important;
-        padding: 0 0.5rem;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        padding: 8px 12px !important;
-        font-size: 0.85rem !important;
-        min-width: auto !important;
-        flex: 1 1 auto;
-        text-align: center;
-        border-radius: 6px;
-        margin: 2px;
-    }
-    
-    /* Buttons small screen optimization */
-    .stButton > button {
-        width: 100% !important;
-        margin: 0.25rem 0 !important;
-        padding: 0.75rem 1rem !important;
-        font-size: 0.9rem !important;
-        border-radius: 8px;
-        min-height: 44px !important;
-        touch-action: manipulation;
-    }
-    
-    /* Columns small screen stacking */
-    .row-widget {
-        flex-direction: column !important;
-    }
-    
-    .row-widget > div {
-        width: 100% !important;
-        margin-bottom: 1rem !important;
-    }
-    
-    /* File uploader small screens */
-    .stFileUploader > div {
-        padding: 1rem 0.5rem !important;
-        min-height: 80px !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    /* Input fields small screens */
-    .stTextInput > div > div > input,
-    .stSelectbox > div > div > select,
-    .stNumberInput > div > div > input {
-        font-size: 16px !important;
-        padding: 0.75rem !important;
-        min-height: 44px !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Data display small screens */
-    .stDataFrame {
-        font-size: 0.8rem !important;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    /* Charts small screens */
-    .js-plotly-plot {
-        margin: 0.5rem 0 !important;
-    }
-}
-
-/* Tablet styles (768px–1024px) */
-@media screen and (min-width: 768px) and (max-width: 1024px) {
-    .main .block-container {
-        padding: 1.25rem 1rem !important;
-        max-width: 95% !important;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px !important;
-        padding: 0 0.5rem;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 10px 16px !important;
-        font-size: 0.95rem !important;
-        min-width: auto !important;
-        border-radius: var(--radius-sm);
-    }
-    .stButton > button {
-        padding: 0.75rem 1.25rem !important;
-        font-size: 0.95rem !important;
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-sm);
-    }
-    .stDataFrame {
-        font-size: 0.95rem !important;
-    }
-}
-
-/* Very small devices (320px - 480px) */
-@media screen and (max-width: 480px) {
-    .main .block-container {
-        padding: 0.75rem 0.25rem !important;
-    }
-    
-    .logo-container img {
-        width: 60px !important;
-        height: 60px !important;
-    }
-    
-    .main-heading {
-        font-size: 1.1rem !important;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        padding: 6px 8px !important;
-        font-size: 0.8rem !important;
-    }
-}
-
-/* Touch-friendly interactions */
-@media (hover: none) and (pointer: coarse) {
-    .stButton > button,
-    .stSelectbox,
-    .stFileUploader,
-    button,
-    [role="button"] {
-        min-height: 44px !important;
-        min-width: 44px !important;
-    }
-    
-    .stButton > button:focus,
-    input:focus,
-    select:focus {
-        outline: 2px solid #007bff !important;
-        outline-offset: 2px !important;
-    }
-}
-
-/* Responsive utility classes */
-.responsive-center { text-align: center !important; }
-.responsive-full-width { width: 100% !important; }
-"""
-
-st.markdown(f"<style>{responsive_css}</style>", unsafe_allow_html=True)
-
-# Add responsive viewport and interaction improvements
-st.markdown(
-    """
-    <script>
-    // Viewport detection and optimization
-    function optimizeForDevice() {
-        const isMobile = window.innerWidth < 768;
-        const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1024;
-        
-        document.body.setAttribute('data-device', 
-            isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop'
-        );
-        
-        // Prevent zoom on iOS when focusing inputs
-        if (isMobile && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
-            const viewport = document.querySelector('meta[name="viewport"]');
-            if (viewport) {
-                viewport.setAttribute('content', 
-                    'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
-                );
-            }
-        }
-        
-        // Add touch-friendly classes
-        if ('ontouchstart' in window) {
-            document.body.classList.add('touch-device');
-        }
-    }
-    
-    // Run on load and resize
-    window.addEventListener('load', optimizeForDevice);
-    window.addEventListener('resize', optimizeForDevice);
-    optimizeForDevice();
-    
-    // Improve scrolling on small screens
-    if (window.innerWidth < 768) {
-        document.body.style.WebkitOverflowScrolling = 'touch';
-        document.body.style.scrollBehavior = 'smooth';
-    }
-    </script>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Enhanced CSS for production-ready UI
-st.markdown(
-    """
-<style>
-/* Tab styling */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 2px;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 0;
-}
-.stTabs [data-baseweb="tab"] {
-    height: 50px;
-    padding: 8px 20px;
-    border-radius: 8px 8px 0 0;
-    border: 2px solid transparent;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-.stTabs [data-baseweb="tab"]:hover {
-    background-color: #f8f9fa;
-    border-color: #e0e0e0;
-}
-.stTabs [data-baseweb="tab"][aria-selected="true"] {
-    background-color: #ffffff;
-    border-color: #e0e0e0;
-    border-bottom-color: #ffffff;
-    color: #1f77b4;
-}
-
-/* Metric cards */
-.metric-container {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1.5rem;
-    border-radius: 12px;
-    margin: 0.5rem 0;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    position: relative;
-    overflow: hidden;
-}
-
-.metric-container::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 100%;
-    height: 100%;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 10L60 30L80 30L65 45L70 65L50 55L30 65L35 45L20 30L40 30Z' fill='none' stroke='rgba(255,255,255,0.1)' stroke-width='0.5'/%3E%3C/svg%3E") repeat;
-    opacity: 0.1;
-    animation: webPattern 20s linear infinite;
-}
-
-@keyframes webPattern {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Enhanced dataframes */
-.stDataFrame {
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-.stDataFrame thead th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-    color: #495057;
-    border-bottom: 2px solid #dee2e6;
-}
-.stDataFrame tbody tr:nth-child(odd) {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-.stDataFrame tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.1);
-    transition: background-color 0.2s ease;
-}
-
-/* Buttons */
-.stButton > button {
-    border-radius: 8px;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    border: 2px solid transparent;
-}
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-.stButton > button[kind="primary"] {
-    background: linear-gradient(45deg, #007bff, #0056b3);
-    border-color: #007bff;
-}
-
-/* Section headers */
-h1, h2, h3 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-}
-h1 {
-    border-bottom: 3px solid #007bff;
-    padding-bottom: 0.5rem;
-}
-h2 { color: var(--text-primary); }
-
-/* Sidebar styling */
-.css-1d391kg {
-    background-color: #f8f9fa;
-}
-
-/* Upload area */
-.stFileUploader {
-    border: 2px dashed #007bff;
-    border-radius: 8px;
-    padding: 1rem;
-    background-color: #f8f9fa;
-    transition: all 0.2s ease;
-}
-.stFileUploader:hover {
-    border-color: #0056b3;
-    background-color: #e9ecef;
-}
-
-/* Progress bars */
-.stProgress .st-bo {
-    background-color: #e9ecef;
-    border-radius: 10px;
-}
-.stProgress .st-bp {
-    background: linear-gradient(90deg, #007bff, #28a745);
-    border-radius: 10px;
-}
-
-/* Expanders */
-.streamlit-expanderHeader {
-    font-weight: 600;
-    border-radius: 8px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-}
-
-/* Info/warning/error boxes */
-.stAlert {
-    border-radius: 8px;
-    border-left: 4px solid;
-}
-.stAlert[kind="info"] {
-    border-left-color: #17a2b8;
-    background-color: #d1ecf1;
-}
-.stAlert[kind="success"] {
-    border-left-color: #28a745;
-    background-color: #d4edda;
-}
-.stAlert[kind="warning"] {
-    border-left-color: #ffc107;
-    background-color: #fff3cd;
-}
-.stAlert[kind="error"] {
-    border-left-color: #dc3545;
-    background-color: #f8d7da;
-}
-
-/* Loading spinner */
-.stSpinner {
-    text-align: center;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-    .stTabs [data-baseweb="tab"] {
-        padding: 6px 12px;
-        height: 40px;
-        font-size: 0.9rem;
-    }
-    .metric-container {
-        padding: 1rem;
-    }
-}
-
-/* Logo and branding enhancements */
-.logo-container {
-    position: relative;
-    display: inline-block;
-}
-
-.logo-container::before {
-    content: '';
-    position: absolute;
-    top: -10px;
-    left: -10px;
-    right: -10px;
-    bottom: -10px;
-    background: radial-gradient(circle at center, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
-    border-radius: 50%;
-    z-index: -1;
-    animation: logoGlow 3s ease-in-out infinite alternate;
-}
-
-@keyframes logoGlow {
-    0% { opacity: 0.3; transform: scale(0.95); }
-    100% { opacity: 0.6; transform: scale(1.05); }
-}
-
-/* Musical note decorations */
-.musical-notes {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    overflow: hidden;
-}
-
-.musical-notes::after {
-    content: '♪ ♫ ♪ ♫';
-    position: absolute;
-    top: 20%;
-    right: -20px;
-    font-size: 1.2rem;
-    color: rgba(102, 126, 234, 0.2);
-    animation: float 6s ease-in-out infinite;
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0px) rotate(0deg); }
-    50% { transform: translateY(-10px) rotate(5deg); }
-}
-</style>
-""",
-    unsafe_allow_html=True,
 )
 
 
@@ -898,108 +211,38 @@ class SessionManager:
 
 
 def render_header():
-    """Render the main header with responsive branding."""
-    # Responsive layout - centered content adapts to screen size
+    """Compact identity and live workspace status."""
+    count = len(SessionManager.list_libraries())
+    logo = get_logo_base64()[0]
     st.markdown(
-        """
-        <div style="text-align: center; padding: clamp(1rem, 3vw, 2rem) 0; position: relative;" class="musical-notes responsive-center">
-            <div class="logo-container" style="margin-bottom: 1rem;">
-                <img src="data:image/png;base64,{logo_base64}" 
-                     class="logo-adaptive"
-                     style="width: clamp(60px, 15vw, 150px); height: clamp(60px, 15vw, 150px); 
-                            margin-bottom: 1rem; transition: transform 0.3s ease, filter 0.3s ease;" 
-                     alt="a mega music comparator Logo"/>
-            </div>
-            <h1 class="main-heading" style="font-size: clamp(1.1rem, 4vw, 1.4rem); color: var(--text-primary); 
-                                           margin: 0; font-weight: 600; letter-spacing: 0.5px;">
-                a mega music comparator
-            </h1>
-            <div style="width: clamp(80px, 20vw, 120px); height: 3px; 
-                        background: linear-gradient(45deg, #667eea, #764ba2); 
-                        margin: 1rem auto; border-radius: 2px;"></div>
-        </div>
-        """.format(
-            logo_base64=get_logo_base64()[0] if get_logo_base64()[0] else ""
-        ),
+        f'<header class="mw-masthead"><div class="mw-wordmark">'
+        f'<img class="mw-logo" src="data:image/png;base64,{logo}" alt="MusicWeb logo"/>'
+        "<h1>MusicWeb</h1></div>"
+        f'<div class="mw-session">{count} '
+        f'{"library" if count == 1 else "libraries"}</div></header>',
         unsafe_allow_html=True,
     )
 
 
 def render_sidebar():
-    """Render the sidebar with file uploads and library management."""
-    # Small adaptive logo in sidebar
-    logo_data = get_logo_base64()
-    if logo_data[0]:
-        st.sidebar.markdown(
-            f"""
-        <div style="text-align: center; padding: 0.5rem 0;">
-            <img src="data:image/png;base64,{logo_data[0]}" 
-                 class="logo-adaptive" 
-                 style="width: 50px; height: 50px; opacity: 0.9; transition: filter 0.3s ease;" 
-                 alt="a mega music comparator"/>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    # Appearance controls
-    if "theme_preference" not in st.session_state:
-        st.session_state.theme_preference = "Auto (System)"
-
-    st.sidebar.subheader("🎨 Appearance")
-    theme_choice = st.sidebar.selectbox(
-        "Theme",
-        options=["Auto (System)", "Light", "Dark"],
-        index=["Auto (System)", "Light", "Dark"].index(st.session_state.theme_preference),
-        help="Override system theme for this app",
-    )
-    st.session_state.theme_preference = theme_choice
-
-    # Persist preference in localStorage and apply immediately
-    _pref_map = {"Auto (System)": "auto", "Light": "light", "Dark": "dark"}
-    st.markdown(
-        f"""
-        <script>
-        try {{
-            localStorage.setItem('themePreference', '{_pref_map[theme_choice]}');
-            if (typeof detectTheme === 'function') detectTheme();
-        }} catch (e) {{ /* ignore */ }}
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.sidebar.header("▶ Library Management")
+    """Uploads and connections, kept close to the workspace."""
+    st.sidebar.header("Libraries")
 
     # File upload section with better UX
-    with st.sidebar.expander("⬆ Upload Library Files", expanded=True):
-        st.markdown(
-            """
-        <div style="background-color: #e8f5e8; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            <p style="margin: 0; font-size: 0.9rem; color: #2d5016;">
-                <strong>Supported formats:</strong><br>
-                • Apple Music: CSV or XML export<br>
-                • Spotify: CSV (Exportify) or JSON export<br>
-                • YouTube Music: JSON from Google Takeout<br>
-                • Generic: CSV with Title, Artist, Album columns
-            </p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
+    with st.sidebar.container():
         uploaded_files = st.file_uploader(
-            "Choose library files",
+            "Upload libraries",
             accept_multiple_files=True,
             type=["csv", "json", "xml"],
-            help="Drag and drop files or click to browse",
+            help="Apple Music, Spotify, or YouTube Music exports. CSV, JSON, or XML; up to 100 MB per library.",
         )
+        st.caption("CSV · JSON · XML · 100 MB max per file")
 
         if uploaded_files:
             for uploaded_file in uploaded_files:
                 # Enhanced file loading with better feedback
                 if st.button(
-                    f"📤 Load {uploaded_file.name}",
+                    f"Load {uploaded_file.name}",
                     key=f"load_{uploaded_file.name}",
                     use_container_width=True,
                 ):
@@ -1013,9 +256,7 @@ def render_sidebar():
 
                         if success:
                             progress_bar.empty()
-                            st.balloons()
                             st.success(f"✅ Successfully loaded {uploaded_file.name}")
-                            time.sleep(1)  # Brief pause to show success
                             st.rerun()
                         else:
                             progress_bar.empty()
@@ -1023,10 +264,10 @@ def render_sidebar():
     # Existing libraries
     libraries = SessionManager.list_libraries()
     if libraries:
-        st.sidebar.header("♪ Loaded Libraries")
+        st.sidebar.header("Loaded")
         for lib_name in libraries:
             library = SessionManager.get_library(lib_name)
-            with st.sidebar.expander(f"♫ {lib_name}", expanded=False):
+            with st.sidebar.expander(f"{lib_name}", expanded=False):
                 st.write(f"**Platform:** {library.platform}")
                 st.write(f"**Total tracks:** {library.total_tracks:,}")
                 st.write(f"**Music tracks:** {library.music_count:,}")
@@ -1038,34 +279,35 @@ def render_sidebar():
                     st.rerun()
 
     # YouTube Music setup
-    st.sidebar.header("♫ YouTube Music")
-    headers_file = st.sidebar.file_uploader(
-        "Upload headers file",
-        type=["json", "txt", "i"],
-        help="Headers in JSON format or raw HTTP headers format",
-    )
+    st.sidebar.header("YouTube Music")
+    with st.sidebar.expander("Connect account", expanded=False):
+        headers_file = st.file_uploader(
+            "Upload headers file",
+            type=["json", "txt", "i"],
+            help="Headers in JSON format or raw HTTP headers format",
+        )
 
-    if headers_file:
-        if st.sidebar.button("Setup YouTube Music"):
-            # Process the headers file (converts raw to JSON if needed)
-            tmp_path = process_headers_upload(headers_file)
+        if headers_file:
+            if st.button("Setup YouTube Music"):
+                # Process the headers file (converts raw to JSON if needed)
+                tmp_path = process_headers_upload(headers_file)
 
-            if tmp_path:
-                try:
-                    playlist_manager = PlaylistManager(tmp_path)
-                    if playlist_manager.is_available():
-                        st.session_state.playlist_manager = playlist_manager
-                        st.session_state.ytm_headers_path = tmp_path
-                        st.sidebar.success("● YouTube Music connected")
+                if tmp_path:
+                    try:
+                        playlist_manager = PlaylistManager(tmp_path)
+                        if playlist_manager.is_available():
+                            st.session_state.playlist_manager = playlist_manager
+                            st.session_state.ytm_headers_path = tmp_path
+                            st.success("● YouTube Music connected")
 
-                        # Show format info if conversion occurred
-                        if not headers_file.name.endswith(".json"):
-                            st.sidebar.info("▣ Raw headers converted to JSON format")
-                    else:
-                        st.sidebar.error("✖ Failed to connect to YouTube Music")
-                except Exception as e:
-                    st.sidebar.error(f"✖ Setup failed: {e}")
-            # Keep the headers file path for reuse in Dedup tab
+                            # Show format info if conversion occurred
+                            if not headers_file.name.endswith(".json"):
+                                st.info("▣ Raw headers converted to JSON format")
+                        else:
+                            st.error("✖ Failed to connect to YouTube Music")
+                    except Exception as e:
+                        st.error(f"✖ Setup failed: {e}")
+                # Keep the headers file path for reuse in Dedup tab
 
 
 def load_uploaded_file(uploaded_file) -> bool:
@@ -1181,42 +423,15 @@ def process_headers_upload(uploaded_file) -> Optional[str]:
 
 def render_overview_tab():
     """Render the overview tab."""
-    st.header("📊 Library Overview")
-
     libraries = SessionManager.list_libraries()
 
     if not libraries:
-        st.markdown(
-            """
-        <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin: 2rem 0;">
-            <h3 style="color: #495057; margin-bottom: 1rem;">🚀 Welcome to MusicWeb!</h3>
-            <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem;">
-                To get started, upload your music library files using the sidebar.
-            </p>
-            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
-                <div style="text-align: center; flex: 1; min-width: 200px;">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🍎</div>
-                    <strong>Apple Music</strong><br>
-                    <small>Export as CSV</small>
-                </div>
-                <div style="text-align: center; flex: 1; min-width: 200px;">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎵</div>
-                    <strong>Spotify</strong><br>
-                    <small>Use Exportify tool</small>
-                </div>
-                <div style="text-align: center; flex: 1; min-width: 200px;">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📺</div>
-                    <strong>YouTube Music</strong><br>
-                    <small>Google Takeout JSON</small>
-                </div>
-            </div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        render_empty_state("Upload a library to begin.")
         return
 
-    # Enhanced summary metrics with visual improvements
+    st.header("Library overview")
+
+    # Summary metrics
     total_libraries = len(libraries)
     total_tracks = sum(
         SessionManager.get_library(name).total_tracks for name in libraries
@@ -1233,67 +448,15 @@ def render_overview_tab():
         )
     )
 
-    st.markdown("### 📊 Library Summary")
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📚</div>
-            <div style="font-size: 2rem; font-weight: bold;">{}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Libraries</div>
-        </div>
-        """.format(
-                total_libraries
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎵</div>
-            <div style="font-size: 2rem; font-weight: bold;">{:,}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Total Tracks</div>
-        </div>
-        """.format(
-                total_tracks
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎶</div>
-            <div style="font-size: 2rem; font-weight: bold;">{:,}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Music Tracks</div>
-        </div>
-        """.format(
-                total_music
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col4:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">👨‍🎤</div>
-            <div style="font-size: 2rem; font-weight: bold;">{:,}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Unique Artists</div>
-        </div>
-        """.format(
-                total_artists
-            ),
-            unsafe_allow_html=True,
-        )
+    for col, label, value in zip(
+        st.columns(4),
+        ["Libraries", "Total tracks", "Music tracks", "Unique artists"],
+        [total_libraries, total_tracks, total_music, total_artists],
+    ):
+        col.metric(label, f"{value:,}")
 
     # Library details
-    st.subheader("📚 Library Details")
+    st.subheader("Library Details")
 
     lib_data = []
     for lib_name in libraries:
@@ -1317,7 +480,7 @@ def render_overview_tab():
 
     # Visualization
     if HAVE_VISUALIZATION and len(libraries) > 1:
-        st.subheader("📈 Library Comparison")
+        st.subheader("Library Comparison")
 
         col1, col2 = st.columns(2)
 
@@ -1334,7 +497,7 @@ def render_overview_tab():
                 title="Music Tracks by Library",
                 color="Platform",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            render_chart(fig)
 
         with col2:
             # Artist counts
@@ -1345,26 +508,17 @@ def render_overview_tab():
                 title="Unique Artists by Library",
                 color="Platform",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            render_chart(fig)
 
 
 def render_compare_tab():
     """Render the comparison tab."""
-    st.header("🔍 Library Comparison")
+    st.header("Library Comparison")
 
     libraries = SessionManager.list_libraries()
 
     if len(libraries) < 2:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 2rem; border-radius: 12px; text-align: center; border-left: 4px solid #ffc107;">
-            <h4 style="color: #856404; margin-bottom: 1rem;">📊 Library Comparison</h4>
-            <p style="color: #856404; margin-bottom: 1rem;">You need at least 2 libraries to perform comparison analysis.</p>
-            <p style="color: #856404; margin: 0; font-size: 0.9rem;">Upload more libraries using the sidebar to unlock this feature.</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        st.info("Upload another library to compare.")
         return
 
     # Comparison setup
@@ -1399,7 +553,7 @@ def render_compare_tab():
     # Enhanced comparison button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("🔍 Compare Libraries", type="primary", use_container_width=True):
+        if st.button("Compare Libraries", type="primary", use_container_width=True):
             if source_lib and target_lib:
                 with st.spinner("Comparing libraries..."):
                     source_library = SessionManager.get_library(source_lib)
@@ -1437,9 +591,9 @@ def render_compare_tab():
 
                 st.markdown(
                     """
-                <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #28a745; margin: 1rem 0;">
-                    <h4 style="color: #155724; margin: 0;">✅ Comparison Complete!</h4>
-                    <p style="color: #155724; margin: 0.5rem 0 0 0;">Your libraries have been analyzed successfully.</p>
+                <div class="mw-note">
+                    <h4 style="color: var(--mw-ink); margin: 0;">✅ Comparison Complete!</h4>
+                    <p style="color: var(--mw-ink); margin: 0.5rem 0 0 0;">Your libraries have been analyzed successfully.</p>
                 </div>
                 """,
                     unsafe_allow_html=True,
@@ -1456,72 +610,18 @@ def display_comparison_results(result):
     """Display comparison results."""
     stats = result.get_stats()
 
-    # Enhanced summary metrics
-    st.markdown("### 📊 Comparison Results")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">✅</div>
-            <div style="font-size: 1.8rem; font-weight: bold;">{:,}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Total Matches</div>
-        </div>
-        """.format(
-                stats["total_matches"]
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        match_rate = stats["match_rate"]
-        color = (
-            "#28a745"
-            if match_rate >= 80
-            else "#ffc107" if match_rate >= 60 else "#dc3545"
-        )
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, {} 0%, {} 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🎯</div>
-            <div style="font-size: 1.8rem; font-weight: bold;">{:.1f}%</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Match Rate</div>
-        </div>
-        """.format(
-                color, color, match_rate
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #007bff 0%, #6610f2 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🏆</div>
-            <div style="font-size: 1.8rem; font-weight: bold;">{:.1f}%</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Avg Confidence</div>
-        </div>
-        """.format(
-                stats["avg_confidence"]
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with col4:
-        st.markdown(
-            """
-        <div style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%); color: white; padding: 1.5rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❌</div>
-            <div style="font-size: 1.8rem; font-weight: bold;">{:,}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">Missing Tracks</div>
-        </div>
-        """.format(
-                stats["missing_tracks"]
-            ),
-            unsafe_allow_html=True,
-        )
+    st.subheader("Comparison results")
+    for col, label, value in zip(
+        st.columns(4),
+        ["Total matches", "Match rate", "Avg confidence", "Missing tracks"],
+        [
+            f"{stats['total_matches']:,}",
+            f"{stats['match_rate']:.1f}%",
+            f"{stats['avg_confidence']:.1f}%",
+            f"{stats['missing_tracks']:,}",
+        ],
+    ):
+        col.metric(label, value)
 
     # Match breakdown
     col1, col2, col3 = st.columns(3)
@@ -1533,7 +633,7 @@ def display_comparison_results(result):
         st.metric("ISRC Matches", f"{stats['isrc_matches']:,}")
 
     # Detailed results
-    tabs = st.tabs(["🎯 Matched Tracks", "❌ Missing Tracks", "📈 Visualizations"])
+    tabs = st.tabs(["Matched Tracks", "❌ Missing Tracks", "Visualizations"])
 
     with tabs[0]:
         if result.matches:
@@ -1588,7 +688,7 @@ def display_comparison_results(result):
             with col2:
                 csv = matches_df.to_csv(index=False)
                 st.download_button(
-                    "📥 Download Matched Tracks CSV",
+                    "Download Matched Tracks CSV",
                     csv,
                     f"matched_tracks_{int(time.time())}.csv",
                     "text/csv",
@@ -1634,7 +734,7 @@ def display_comparison_results(result):
             with col2:
                 csv = missing_df.to_csv(index=False)
                 st.download_button(
-                    "📥 Download Missing Tracks CSV",
+                    "Download Missing Tracks CSV",
                     csv,
                     f"missing_tracks_{int(time.time())}.csv",
                     "text/csv",
@@ -1644,13 +744,13 @@ def display_comparison_results(result):
             # Enhanced YouTube Music playlist creation
             if st.session_state.playlist_manager:
                 st.markdown("---")
-                st.markdown("### 🎵 Create YouTube Music Playlist")
+                st.markdown("### Create YouTube Music Playlist")
 
                 st.markdown(
                     """
-                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #2196f3;">
-                    <p style="margin: 0; color: #0d47a1;">
-                        <strong>🎯 Pro Tip:</strong> Create a playlist from missing tracks to easily add them to your YouTube Music library.
+                <div class="mw-note">
+                    <p style="margin: 0; color: var(--mw-ink);">
+                        <strong>Pro Tip:</strong> Create a playlist from missing tracks to easily add them to your YouTube Music library.
                     </p>
                 </div>
                 """,
@@ -1664,7 +764,7 @@ def display_comparison_results(result):
                 col1, col2, col3 = st.columns([1, 2, 1])
                 with col2:
                     if st.button(
-                        "🎵 Create Playlist", type="primary", use_container_width=True
+                        "Create Playlist", type="primary", use_container_width=True
                     ):
                         with st.spinner("Creating playlist..."):
                             playlist_result = (
@@ -1713,7 +813,7 @@ def render_comparison_charts(result, stats):
             names=list(match_data.keys()),
             title="Match Type Distribution",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        render_chart(fig)
 
     with col2:
         # Overall match rate
@@ -1730,7 +830,7 @@ def render_comparison_charts(result, stats):
         fig.update_layout(
             title="Overall Match Rate", yaxis_title="Percentage", barmode="stack"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        render_chart(fig)
 
     # Confidence distribution
     if result.matches:
@@ -1742,12 +842,12 @@ def render_comparison_charts(result, stats):
             title="Match Confidence Distribution",
             labels={"x": "Confidence (%)", "y": "Number of Matches"},
         )
-        st.plotly_chart(fig, use_container_width=True)
+        render_chart(fig)
 
 
 def render_analyze_tab():
     """Render the analysis tab."""
-    st.header("📊 Multi-Library Analysis")
+    st.header("Multi-Library Analysis")
 
     libraries = SessionManager.list_libraries()
 
@@ -1780,7 +880,7 @@ def render_analyze_tab():
             use_album = st.checkbox("Use Album", value=False, key="analyze_album")
 
     # Perform analysis
-    if st.button("📊 Analyze Libraries", type="primary"):
+    if st.button("Analyze Libraries", type="primary"):
         with st.spinner("Analyzing libraries..."):
             selected_libraries = [
                 SessionManager.get_library(name) for name in selected_libs
@@ -1806,7 +906,7 @@ def render_analyze_tab():
 
 def display_analysis_results(analysis):
     """Display multi-library analysis results."""
-    st.subheader("📈 Analysis Results")
+    st.subheader("Analysis Results")
 
     # Universal tracks
     universal_count = len(analysis["universal_tracks"])
@@ -1826,13 +926,13 @@ def display_analysis_results(analysis):
         [
             "🔄 Pairwise Comparisons",
             "🌟 Universal Content",
-            "🎨 Unique Content",
+            "Unique Content",
             "👥 Artist Analysis",
         ]
     )
 
     with tabs[0]:
-        st.subheader("📊 Pairwise Comparison Matrix")
+        st.subheader("Pairwise Comparison Matrix")
 
         comparison_data = []
         for comp in analysis["pairwise_comparisons"]:
@@ -1859,7 +959,7 @@ def display_analysis_results(analysis):
             # Download
             csv = universal_df.to_csv(index=False)
             st.download_button(
-                "📥 Download Universal Tracks",
+                "Download Universal Tracks",
                 csv,
                 f"universal_tracks_{int(time.time())}.csv",
                 "text/csv",
@@ -1868,10 +968,10 @@ def display_analysis_results(analysis):
             st.info("No tracks found in all libraries")
 
     with tabs[2]:
-        st.subheader("🎨 Unique Content per Library")
+        st.subheader("Unique Content per Library")
 
         for lib_name, unique_tracks in analysis["unique_tracks"].items():
-            with st.expander(f"📚 {lib_name} ({len(unique_tracks)} unique tracks)"):
+            with st.expander(f"{lib_name} ({len(unique_tracks)} unique tracks)"):
                 if unique_tracks:
                     unique_df = pd.DataFrame(unique_tracks)
                     st.dataframe(unique_df, use_container_width=True)
@@ -1908,17 +1008,17 @@ def display_analysis_results(analysis):
 
 def render_enrich_tab():
     """Render the enrichment tab."""
-    st.header("🔍 Metadata Enrichment")
+    st.header("Metadata Enrichment")
 
     libraries = SessionManager.list_libraries()
 
     if not libraries:
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 2rem; border-radius: 12px; text-align: center; border-left: 4px solid #ffc107;">
-            <h4 style="color: #856404; margin-bottom: 1rem;">📚 Enrichment Ready</h4>
-            <p style="color: #856404; margin-bottom: 1rem;">Upload some music libraries first to unlock metadata enrichment.</p>
-            <p style="color: #856404; margin: 0; font-size: 0.9rem;">Use the sidebar to get started with your library files.</p>
+        <div class="mw-note">
+            <h4 style="color: var(--mw-ink); margin-bottom: 1rem;">Enrichment Ready</h4>
+            <p style="color: var(--mw-ink); margin-bottom: 1rem;">Upload some music libraries first to unlock metadata enrichment.</p>
+            <p style="color: var(--mw-ink); margin: 0; font-size: 0.9rem;">Use the sidebar to get started with your library files.</p>
         </div>
         """,
             unsafe_allow_html=True,
@@ -1940,18 +1040,18 @@ def render_enrich_tab():
     # Key stats for CTA context
     missing_isrc = sum(1 for t in library.music_tracks if not getattr(t, "isrc", None))
     st.info(
-        f"📊 {library.name}: {library.music_count:,} music tracks | Missing ISRC: {missing_isrc:,}"
+        f"{library.name}: {library.music_count:,} music tracks | Missing ISRC: {missing_isrc:,}"
     )
 
     # Clear primary CTAs
     st.markdown(
         """
-        <div style="background: linear-gradient(135deg, #e3f2fd 0%, #f1f8ff 100%); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid #cfe2ff; margin: 0.5rem 0 1rem;">
+        <div class="mw-note">
             <div style="display:flex; align-items:center; gap:10px; margin-bottom: 0.75rem;">
-                <span style="font-size: 1.25rem;">🧩</span>
-                <div style="font-weight: 600; color: #0d6efd;">Add ISRC Codes via MusicBrainz</div>
+                <span style="font-size: 1.25rem;"></span>
+                <div style="font-weight: 600; color: var(--mw-ink);">Add ISRC Codes via MusicBrainz</div>
             </div>
-            <div style="color: #1b4b91; font-size: 0.95rem;">Find and attach official ISRC identifiers to tracks that are missing them. Uses MusicBrainz with safe rate limits.</div>
+            <div style="color: var(--mw-ink); font-size: 0.95rem;">Find and attach official ISRC identifiers to tracks that are missing them. Uses MusicBrainz with safe rate limits.</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1988,10 +1088,10 @@ def render_enrich_tab():
     # Enhanced warning with better styling
     st.markdown(
         """
-    <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 1.5rem; border-radius: 12px; border-left: 4px solid #ffc107; margin: 1rem 0;">
-        <h4 style="color: #856404; margin-bottom: 1rem;">⚠️ Rate Limiting Notice</h4>
-        <p style="color: #856404; margin-bottom: 0.5rem;"><strong>MusicBrainz API</strong> is rate-limited to 1 request per 1.2 seconds.</p>
-        <p style="color: #856404; margin: 0;">Large libraries may take significant time to process. Consider using the limit option for testing.</p>
+    <div class="mw-note">
+        <h4 style="color: var(--mw-ink); margin-bottom: 1rem;">⚠️ Rate Limiting Notice</h4>
+        <p style="color: var(--mw-ink); margin-bottom: 0.5rem;"><strong>MusicBrainz API</strong> is rate-limited to 1 request per 1.2 seconds.</p>
+        <p style="color: var(--mw-ink); margin: 0;">Large libraries may take significant time to process. Consider using the limit option for testing.</p>
     </div>
     """,
         unsafe_allow_html=True,
@@ -2071,7 +1171,7 @@ def render_enrich_tab():
 
 def display_enrichment_results(enriched_results):
     """Display enrichment results."""
-    st.subheader("📊 Enrichment Results")
+    st.subheader("Enrichment Results")
 
     successful = [result for result in enriched_results if result[1].get("musicbrainz")]
     failed = [result for result in enriched_results if not result[1].get("musicbrainz")]
@@ -2116,7 +1216,7 @@ def display_enrichment_results(enriched_results):
         st.dataframe(enriched_df, use_container_width=True)
 
         # Download enriched data
-        if st.button("📥 Download Enriched Data"):
+        if st.button("Download Enriched Data"):
             enrichment_export = []
             for enhanced_track, enrichment_info in successful:
                 export_data = enhanced_track.to_dict()
@@ -2126,7 +1226,7 @@ def display_enrichment_results(enriched_results):
 
             json_str = json.dumps(enrichment_export, indent=2, default=str)
             st.download_button(
-                "📥 Download as JSON",
+                "Download as JSON",
                 json_str,
                 f"enriched_data_{int(time.time())}.json",
                 "application/json",
@@ -2160,122 +1260,54 @@ def parse_library_file(uploaded_file, library_name):
 
 def main():
     """Main application entry point."""
-    # Initialize session
     SessionManager.initialize_session()
-
-    # Render responsive app for all devices
+    apply_theme()
     render_header()
     render_sidebar()
 
-    # Enhanced main tabs with better organization
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    tabs = st.tabs(
         [
-            "📊 Overview",
-            "🔍 Compare",
-            "📊 Analyze",
-            "📝 Playlist Audit",
-            "🧹 YTM Dedup",
-            "🧽 Playlist Cleanup",
-            "🔍 Enrich",
-            "ℹ️ Help",
+            "Overview",
+            "Compare",
+            "Analyze",
+            "Playlist audit",
+            "YTM dedup",
+            "Playlist cleanup",
+            "Enrich",
+            "Help",
         ]
     )
-
-    # Check if we have libraries for library-dependent tabs
     has_libraries = bool(SessionManager.list_libraries())
-
-    with tab1:
-        if has_libraries:
-            render_overview_tab()
-        else:
-            st.markdown(
-                """
-            <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin: 2rem 0;">
-                <h3 style="color: #495057; margin-bottom: 1rem;">📊 Library Overview</h3>
-                <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem;">
-                    Upload your music library files to see detailed analytics and insights.
-                </p>
-                <div style="background: rgba(255, 255, 255, 0.8); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-                    <small style="color: #6c757d;">👈 Use the sidebar to upload files from Apple Music, Spotify, or YouTube Music</small>
-                </div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with tab2:
+    with tabs[0]:
+        render_overview_tab()
+    with tabs[1]:
         if has_libraries:
             render_compare_tab()
         else:
-            st.markdown(
-                """
-            <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin: 2rem 0;">
-                <h3 style="color: #495057; margin-bottom: 1rem;">🔍 Library Comparison</h3>
-                <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem;">
-                    Compare your music libraries to find matches, duplicates, and missing tracks.
-                </p>
-                <div style="background: rgba(255, 255, 255, 0.8); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-                    <small style="color: #6c757d;">👈 Upload at least 2 library files to unlock comparison features</small>
-                </div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with tab3:
+            render_empty_state("Upload two libraries to compare.")
+    with tabs[2]:
         if has_libraries:
             render_analyze_tab()
         else:
-            st.markdown(
-                """
-            <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin: 2rem 0;">
-                <h3 style="color: #495057; margin-bottom: 1rem;">📊 Multi-Library Analysis</h3>
-                <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem;">
-                    Analyze multiple libraries to find universal tracks, unique content, and artist overlaps.
-                </p>
-                <div style="background: rgba(255, 255, 255, 0.8); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-                    <small style="color: #6c757d;">👈 Upload at least 2 library files to unlock advanced analytics</small>
-                </div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with tab4:
+            render_empty_state("Upload two libraries to analyze.")
+    with tabs[3]:
         render_playlist_audit_tab()
-
-    with tab5:
+    with tabs[4]:
         render_dedup_tab()
-
-    with tab6:
+    with tabs[5]:
         render_playlist_cleanup_tab()
-
-    with tab7:
+    with tabs[6]:
         if has_libraries:
             render_enrich_tab()
         else:
-            st.markdown(
-                """
-            <div style="text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin: 2rem 0;">
-                <h3 style="color: #495057; margin-bottom: 1rem;">🔍 Metadata Enrichment</h3>
-                <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem;">
-                    Enhance your library with additional metadata from MusicBrainz.
-                </p>
-                <div style="background: rgba(255, 255, 255, 0.8); padding: 1rem; border-radius: 8px; margin: 1rem 0;">
-                    <small style="color: #6c757d;">👈 Upload library files to unlock metadata enrichment</small>
-                </div>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with tab8:
+            render_empty_state("Upload a library to enrich.")
+    with tabs[7]:
         render_help_tab()
 
 
 def render_playlist_audit_tab():
     """Render the Playlist Audit tool."""
-    st.header("📝 Playlist Audit against Library")
+    st.header("Playlist Audit against Library")
     st.markdown(
         "Upload a playlist text export (Apple Music text/UTF-16 or simple 'Artist - Title' lines) and audit against a loaded library."
     )
@@ -2366,7 +1398,7 @@ def render_playlist_audit_tab():
             df = pd.DataFrame(res["present"])
             st.dataframe(df, use_container_width=True)
             st.download_button(
-                "📥 Download Present CSV",
+                "Download Present CSV",
                 df.to_csv(index=False),
                 file_name="playlist_present.csv",
             )
@@ -2374,7 +1406,7 @@ def render_playlist_audit_tab():
             df = pd.DataFrame(res["review"])
             st.dataframe(df, use_container_width=True)
             st.download_button(
-                "📥 Download Review CSV",
+                "Download Review CSV",
                 df.to_csv(index=False),
                 file_name="playlist_review.csv",
             )
@@ -2382,7 +1414,7 @@ def render_playlist_audit_tab():
             df = pd.DataFrame(res["missing"])
             st.dataframe(df, use_container_width=True)
             st.download_button(
-                "📥 Download Missing CSV",
+                "Download Missing CSV",
                 df.to_csv(index=False),
                 file_name="playlist_missing.csv",
             )
@@ -2408,7 +1440,7 @@ def render_playlist_audit_tab():
                 lines.append("\t".join([title, artist, album, time_str]))
             txt_bytes = ("\n".join(lines)).encode("utf-16")
             st.download_button(
-                "📥 Download Apple Music Text (.txt)",
+                "Download Apple Music Text (.txt)",
                 data=txt_bytes,
                 file_name="playlist_missing_apple.txt",
                 mime="text/plain",
@@ -2431,7 +1463,7 @@ def render_playlist_audit_tab():
             }
             szi_df = pd.DataFrame(szi_cols)
             st.download_button(
-                "📥 Download Soundiiz CSV",
+                "Download Soundiiz CSV",
                 szi_df.to_csv(index=False),
                 file_name="playlist_missing_soundiiz.csv",
                 mime="text/csv",
@@ -2480,7 +1512,7 @@ def render_playlist_audit_tab():
                 enr_df = pd.DataFrame(enr_rows)
                 st.success("✅ Enrichment complete — download enhanced CSV below")
                 st.download_button(
-                    "📥 Download Soundiiz CSV (with ISRC)",
+                    "Download Soundiiz CSV (with ISRC)",
                     enr_df.to_csv(index=False),
                     file_name="playlist_missing_soundiiz_enriched.csv",
                     mime="text/csv",
@@ -2489,7 +1521,7 @@ def render_playlist_audit_tab():
 
 def render_dedup_tab():
     """Render the YouTube Music deduplication tab."""
-    st.header("🧹 YouTube Music Deduplication")
+    st.header("YouTube Music Deduplication")
 
     # Auth section
     with st.expander("🔐 Authenticate", expanded=True):
@@ -2587,7 +1619,7 @@ def render_dedup_tab():
 
     results = st.session_state.get("ytm_dedup_results")
     if results:
-        st.subheader("📊 Deduplication Summary")
+        st.subheader("Deduplication Summary")
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Library Songs", f"{results['total_songs']:,}")
@@ -2619,7 +1651,7 @@ def render_dedup_tab():
         st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
 
         st.markdown("---")
-        st.subheader("🧩 Select Groups to Include")
+        st.subheader("Select Groups to Include")
         group_ids = [g["id"] for g in results["groups"]]
 
         # Bulk selection controls
@@ -2729,7 +1761,7 @@ def render_dedup_tab():
         st.session_state.ytm_dedup_selected_group_ids = selected_ids
 
         # Export JSON
-        if st.button("📥 Download JSON Report"):
+        if st.button("Download JSON Report"):
             serializable = []
             for g in results["groups"]:
                 serializable.append(
@@ -2756,7 +1788,7 @@ def render_dedup_tab():
                 indent=2,
             )
             st.download_button(
-                "📥 Save Report",
+                "Save Report",
                 json_str,
                 file_name=f"ytm_duplicates_{int(time.time())}.json",
                 mime="application/json",
@@ -2859,7 +1891,7 @@ def render_dedup_tab():
             if winners_rows:
                 winners_df = pd.DataFrame(winners_rows)
                 st.download_button(
-                    "📥 Download Winners CSV",
+                    "Download Winners CSV",
                     winners_df.to_csv(index=False),
                     file_name=f"ytm_winners_{int(time.time())}.csv",
                     mime="text/csv",
@@ -2869,7 +1901,7 @@ def render_dedup_tab():
             if losers_rows:
                 losers_df = pd.DataFrame(losers_rows)
                 st.download_button(
-                    "📥 Download Losers CSV",
+                    "Download Losers CSV",
                     losers_df.to_csv(index=False),
                     file_name=f"ytm_losers_{int(time.time())}.csv",
                     mime="text/csv",
@@ -2877,12 +1909,12 @@ def render_dedup_tab():
 
         # Cleanup actions
         st.markdown("---")
-        st.subheader("🧽 Cleanup Actions (Optional)")
+        st.subheader("Cleanup Actions (Optional)")
         unlike_losers = st.checkbox("Unlike losers in my library", value=False)
         replace_in_playlists = st.checkbox(
             "Replace losers with winner in my playlists", value=False
         )
-        if st.button("📝 Plan Cleanup"):
+        if st.button("Plan Cleanup"):
             if not (unlike_losers or replace_in_playlists):
                 st.info("Select at least one cleanup option.")
             else:
@@ -2967,7 +1999,7 @@ def render_dedup_tab():
                                 continue
                             count = len(edit.remove_items)
                             with st.expander(
-                                f"🎶 {edit.playlist_name} — {count} replacement(s)",
+                                f"{edit.playlist_name} — {count} replacement(s)",
                                 expanded=expand_all,
                             ):
                                 for item in edit.remove_items:
@@ -3016,7 +2048,7 @@ def render_dedup_tab():
 
         if "ytm_cleanup_plan" in st.session_state and not dry_run:
             save_undo = st.checkbox("Save undo log for rollback", value=True)
-            if st.button("🧹 Apply Cleanup Now", type="primary"):
+            if st.button("Apply Cleanup Now", type="primary"):
                 try:
                     cleaner = YTMusicCleaner(dedup.ytmusic)
                     plan = st.session_state["ytm_cleanup_plan"]
@@ -3035,7 +2067,7 @@ def render_dedup_tab():
                     if save_undo and summary.get("undo"):
                         undo_json = json.dumps(summary["undo"], indent=2)
                         st.download_button(
-                            "📥 Download Undo Log",
+                            "Download Undo Log",
                             undo_json,
                             file_name=f"ytm_cleanup_undo_{int(time.time())}.json",
                             mime="application/json",
@@ -3044,7 +2076,7 @@ def render_dedup_tab():
                     st.error(f"Cleanup failed: {e}")
 
         # Create playlist
-        if st.button("🎵 Create Duplicates Playlist"):
+        if st.button("Create Duplicates Playlist"):
             with st.spinner("Creating playlist..."):
                 try:
                     if dry_run:
@@ -3072,17 +2104,15 @@ def render_dedup_tab():
 
 def render_playlist_cleanup_tab():
     """Render the playlist cleanup tab."""
-    st.header("🧽 Playlist Cleanup")
+    st.header("Playlist Cleanup")
 
-    st.markdown(
-        """
+    st.markdown("""
     Comprehensive playlist cleanup with multiple options:
     - **Remove liked songs** from playlists
     - **Remove library duplicates** with advanced similarity matching
     - **Internal deduplication** to remove duplicate tracks within the playlist
     - **Manual review interface** for uncertain matches
-    """
-    )
+    """)
 
     # Authentication section
     with st.expander("🔐 Authentication", expanded=True):
@@ -3131,10 +2161,10 @@ def render_playlist_cleanup_tab():
     if not ytmusic_instance:
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); padding: 2rem; border-radius: 12px; text-align: center; border-left: 4px solid #ffc107;">
-            <h4 style="color: #856404; margin-bottom: 1rem;">🔒 Authentication Required</h4>
-            <p style="color: #856404; margin-bottom: 1rem;">Please connect to YouTube Music first to use playlist cleanup features.</p>
-            <p style="color: #856404; margin: 0; font-size: 0.9rem;">Use the sidebar or upload headers above to authenticate.</p>
+        <div class="mw-note">
+            <h4 style="color: var(--mw-ink); margin-bottom: 1rem;">🔒 Authentication Required</h4>
+            <p style="color: var(--mw-ink); margin-bottom: 1rem;">Please connect to YouTube Music first to use playlist cleanup features.</p>
+            <p style="color: var(--mw-ink); margin: 0; font-size: 0.9rem;">Use the sidebar or upload headers above to authenticate.</p>
         </div>
         """,
             unsafe_allow_html=True,
@@ -3142,7 +2172,7 @@ def render_playlist_cleanup_tab():
         return
 
     # Playlist URL input
-    st.subheader("🎵 Playlist to Clean")
+    st.subheader("Playlist to Clean")
     playlist_url = st.text_input(
         "Playlist URL or ID",
         value="https://music.youtube.com/playlist?list=PL1LO5jourf4MqCSX94juP7bWk2eYTMCQ2&si=-idwc0lg2KK0LYnq",
@@ -3154,7 +2184,7 @@ def render_playlist_cleanup_tab():
 
     # Main cleanup types
     cleanup_tabs = st.tabs(
-        ["🎵 Basic Cleanup", "🔍 Advanced Similarity", "🔄 Internal Dedup"]
+        ["Basic Cleanup", "Advanced Similarity", "🔄 Internal Dedup"]
     )
 
     with cleanup_tabs[0]:
@@ -3214,7 +2244,7 @@ def render_playlist_cleanup_tab():
                     help="Automatically remove tracks with very high similarity scores",
                 )
 
-            st.info("💡 Lower confidence matches will be available for manual review")
+            st.info("Lower confidence matches will be available for manual review")
 
         remove_liked = False
         dedupe_library = True if use_similarity else False
@@ -3239,13 +2269,13 @@ def render_playlist_cleanup_tab():
                 help="Automatically remove obvious duplicates (keeps the best version)",
             )
 
-            st.info("💡 Uncertain duplicates will be available for manual review")
+            st.info("Uncertain duplicates will be available for manual review")
 
         st.markdown(
             """
-        <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 1rem; border-radius: 8px; margin: 1rem 0; border-left: 4px solid #2196f3;">
-            <p style="margin: 0; color: #0d47a1;">
-                <strong>💡 Pro Tip:</strong> To also remove songs already in your main library, use the Basic or Advanced Similarity tabs above.
+        <div class="mw-note">
+            <p style="margin: 0; color: var(--mw-ink);">
+                <strong>Pro Tip:</strong> To also remove songs already in your main library, use the Basic or Advanced Similarity tabs above.
             </p>
         </div>
         """,
@@ -3259,7 +2289,7 @@ def render_playlist_cleanup_tab():
         auto_remove_high_confidence = False
 
     # Performance options
-    with st.expander("🚀 Performance & Advanced Options", expanded=False):
+    with st.expander("Performance & Advanced Options", expanded=False):
         st.info(
             "The cleanup process will cache your library and liked songs for better performance"
         )
@@ -3289,7 +2319,7 @@ def render_playlist_cleanup_tab():
     )
 
     # Execute cleanup
-    if st.button("🧽 Clean Playlist", type="primary"):
+    if st.button("Clean Playlist", type="primary"):
         if not playlist_url:
             st.error("Please enter a playlist URL")
             return
@@ -3524,7 +2554,7 @@ def render_playlist_cleanup_tab():
                         # Show details
                         if tracks_to_remove_liked:
                             with st.expander(
-                                f"🎵 Liked Songs to Remove ({len(tracks_to_remove_liked)})"
+                                f"Liked Songs to Remove ({len(tracks_to_remove_liked)})"
                             ):
                                 for track in tracks_to_remove_liked[:20]:
                                     cimg, cinfo = st.columns([1, 6])
@@ -3546,7 +2576,7 @@ def render_playlist_cleanup_tab():
 
                         if tracks_to_remove_library:
                             with st.expander(
-                                f"📚 Library Duplicates to Remove ({len(tracks_to_remove_library)})"
+                                f"Library Duplicates to Remove ({len(tracks_to_remove_library)})"
                             ):
                                 for track in tracks_to_remove_library[:20]:
                                     cimg, cinfo = st.columns([1, 6])
@@ -3569,10 +2599,10 @@ def render_playlist_cleanup_tab():
                     progress_bar.progress(1.0)
                     status_text.text("Preview complete!")
 
-                    st.success("🔍 Preview Complete!")
+                    st.success("Preview Complete!")
 
                     st.info(
-                        "💡 Uncheck 'Dry run' and click 'Clean Playlist' again to apply these changes"
+                        "Uncheck 'Dry run' and click 'Clean Playlist' again to apply these changes"
                     )
 
                 else:
@@ -3612,7 +2642,7 @@ def render_playlist_cleanup_tab():
                         # Show similarity match summary
                         if result["similarity_matches"]["needs_review"]:
                             st.info(
-                                f"💡 {len(result['similarity_matches']['needs_review'])} matches need manual review - use the review interface below"
+                                f"{len(result['similarity_matches']['needs_review'])} matches need manual review - use the review interface below"
                             )
 
                         if (
@@ -3668,7 +2698,7 @@ def render_playlist_cleanup_tab():
                             }
 
                             st.session_state["playlist_review_data"] = review_data
-                            st.success("📋 Review data saved for manual processing")
+                            st.success("Review data saved for manual processing")
 
                     elif dedupe_internal:
                         # Internal deduplication
@@ -3694,13 +2724,13 @@ def render_playlist_cleanup_tab():
 
                         if result["needs_review"] > 0:
                             st.info(
-                                f"💡 {result['needs_review']} duplicate groups need manual review"
+                                f"{result['needs_review']} duplicate groups need manual review"
                             )
 
                         if save_review_data and result["duplicates"]:
                             st.session_state["internal_dedup_data"] = result
                             st.success(
-                                "📋 Internal duplicate data saved for manual processing"
+                                "Internal duplicate data saved for manual processing"
                             )
 
                     else:
@@ -3739,7 +2769,7 @@ def render_playlist_cleanup_tab():
                     # Show link to cleaned playlist
                     playlist_id = cleaner.extract_playlist_id(playlist_url)
                     st.markdown(
-                        f"🎵 **[View Cleaned Playlist](https://music.youtube.com/playlist?list={playlist_id})**"
+                        f"**[View Cleaned Playlist](https://music.youtube.com/playlist?list={playlist_id})**"
                     )
 
                 progress_bar.empty()
@@ -3755,12 +2785,12 @@ def render_playlist_cleanup_tab():
         or "internal_dedup_data" in st.session_state
     ):
         st.markdown("---")
-        st.subheader("🔍 Manual Review Interface")
+        st.subheader("Manual Review Interface")
 
         if "playlist_review_data" in st.session_state:
             review_data = st.session_state["playlist_review_data"]
 
-            st.markdown("**📚 Library Duplicate Candidates for Manual Review**")
+            st.markdown("**Library Duplicate Candidates for Manual Review**")
 
             with st.expander(
                 f"Review {len(review_data['needs_review'])} potential library duplicates",
@@ -3846,11 +2876,10 @@ def render_playlist_cleanup_tab():
 
 def render_help_tab():
     """Render the help tab."""
-    st.header("ℹ️ Help & Documentation")
+    st.header("Help & Documentation")
 
-    st.markdown(
-        """
-    ## 🎵 MusicWeb - Getting Started
+    st.markdown("""
+    ## MusicWeb - Getting Started
     
     ### 📂 Uploading Libraries
     1. Use the sidebar to upload CSV or JSON files from:
@@ -3860,7 +2889,7 @@ def render_help_tab():
     
     2. Files are auto-detected based on content and format
     
-    ### 🔍 Comparing Libraries
+    ### Comparing Libraries
     1. Go to the **Compare** tab
     2. Select source and target libraries
     3. Adjust matching options:
@@ -3869,38 +2898,37 @@ def render_help_tab():
        - **Use Album**: Include album information in matching
     4. Click "Compare Libraries" to run the analysis
     
-    ### 📊 Multi-Library Analysis
+    ### Multi-Library Analysis
     1. Use the **Analyze** tab for comparing multiple libraries
     2. Select which libraries to include in the analysis
     3. View universal tracks, unique content, and artist overlap
     
-    ### 🔍 Metadata Enrichment
+    ### Metadata Enrichment
     1. Use the **Enrich** tab to enhance your library with MusicBrainz data
     2. **Note**: This process is rate-limited and can take time for large libraries
     3. Enrichment adds missing metadata like ISRC codes, genres, and improved duration data
     
-    ### 🎵 YouTube Music Integration
+    ### YouTube Music Integration
     1. Upload your headers file in the sidebar (supports both formats):
        - **JSON format**: `headers_auth.json` (from `ytmusicapi setup`)
        - **Raw format**: Raw HTTP headers from browser dev tools (auto-converted)
     2. Once connected, you can create playlists from missing tracks
     
-    ### 💡 Tips
+    ### Tips
     - **Large Libraries**: Consider using the "Strict Matching" option for better performance
     - **Duplicates**: The system automatically filters out non-music content
     - **Matching**: The fuzzy matching algorithm handles variations in artist names, featuring artists, and title formats
     - **Exports**: All results can be downloaded as CSV files for further analysis
     
-    ### 🛠️ Troubleshooting
+    ### Troubleshooting
     - **CSV Issues**: Ensure your CSV files have proper headers and UTF-8 encoding
     - **YouTube Music**: Make sure your headers file is valid and not expired
     - **Performance**: For very large libraries (>50K tracks), consider comparing in smaller batches
     
-    ### 📧 Support
+    ### Support
     This is a consolidated version of multiple music library tools. All the advanced matching
     algorithms and features from the original tools have been preserved and enhanced.
-    """
-    )
+    """)
 
 
 if __name__ == "__main__":

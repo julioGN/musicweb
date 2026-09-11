@@ -27,10 +27,11 @@ enableXsrfProtection = true
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#667eea"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f0f2f6"
-textColor = "#262730"
+base = "light"
+primaryColor = "#252620"
+backgroundColor = "#f8f8f3"
+secondaryBackgroundColor = "#efefe8"
+textColor = "#252620"
 
 [logger]
 level = "${LOG_LEVEL}"

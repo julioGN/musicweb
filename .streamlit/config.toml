@@ -1,0 +1,11 @@
+# Shared ink-and-paper defaults for local and Streamlit Cloud launches.
+[theme]
+base = "light"
+primaryColor = "#252620"
+backgroundColor = "#f8f8f3"
+secondaryBackgroundColor = "#efefe8"
+textColor = "#252620"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
